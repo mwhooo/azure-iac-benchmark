@@ -65,7 +65,9 @@ Each tool deploys identical infrastructure:
 | Terraform | [Download](https://www.terraform.io/downloads) (v1.0+) |
 | OpenTofu | [Install Guide](https://opentofu.org/docs/intro/install/) (v1.6+) |
 | Pulumi | [Install Guide](https://www.pulumi.com/docs/get-started/install/) (v3.0+) |
-| Python | 3.8+ (for Pulumi) |
+| .NET SDK | [Download](https://dotnet.microsoft.com/download) (8.0+) |
+
+> **Note on Pulumi language choice**: This benchmark uses Pulumi with C#/.NET rather than Python. While Python Pulumi performs equally well at applying infrastructure state, the CI/CD workflow initialization overhead (creating virtual environments, installing pip dependencies) significantly increases total pipeline runtime. .NET's `dotnet restore` is considerably faster, making it more suitable for CI/CD benchmarking scenarios.
 
 ### One-Command Setup
 
