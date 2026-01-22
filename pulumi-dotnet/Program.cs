@@ -1,15 +1,17 @@
 using Pulumi;
 using Pulumi.AzureNative.Resources;
 using Pulumi.AzureNative.Network;
-using Pulumi.AzureNative.Network.Inputs;
 using Pulumi.AzureNative.Storage;
-using Pulumi.AzureNative.Storage.Inputs;
 using Pulumi.AzureNative.Web;
-using Pulumi.AzureNative.Web.Inputs;
 using Pulumi.AzureNative.OperationalInsights;
-using Pulumi.AzureNative.OperationalInsights.Inputs;
 using Pulumi.Random;
 using System.Collections.Generic;
+
+// Aliases to resolve ambiguous references
+using NetworkInputs = Pulumi.AzureNative.Network.Inputs;
+using StorageInputs = Pulumi.AzureNative.Storage.Inputs;
+using WebInputs = Pulumi.AzureNative.Web.Inputs;
+using OpsInputs = Pulumi.AzureNative.OperationalInsights.Inputs;
 
 return await Pulumi.Deployment.RunAsync(() =>
 {
@@ -65,7 +67,7 @@ return await Pulumi.Deployment.RunAsync(() =>
             Tags = tags,
             SecurityRules = new[]
             {
-                new SecurityRuleArgs
+                new NetworkInputs.SecurityRuleArgs
                 {
                     Name = "AllowHTTP",
                     Priority = 100,
@@ -77,7 +79,7 @@ return await Pulumi.Deployment.RunAsync(() =>
                     SourceAddressPrefix = "*",
                     DestinationAddressPrefix = "*"
                 },
-                new SecurityRuleArgs
+                new NetworkInputs.SecurityRuleArgs
                 {
                     Name = "AllowHTTPS",
                     Priority = 110,
@@ -89,7 +91,7 @@ return await Pulumi.Deployment.RunAsync(() =>
                     SourceAddressPrefix = "*",
                     DestinationAddressPrefix = "*"
                 },
-                new SecurityRuleArgs
+                new NetworkInputs.SecurityRuleArgs
                 {
                     Name = "DenyAllInbound",
                     Priority = 1000,
@@ -117,27 +119,27 @@ return await Pulumi.Deployment.RunAsync(() =>
             ResourceGroupName = resourceGroupName,
             Location = location,
             Tags = tags,
-            AddressSpace = new AddressSpaceArgs
+            AddressSpace = new NetworkInputs.AddressSpaceArgs
             {
                 AddressPrefixes = new[] { "10.0.0.0/16" }
             },
             Subnets = new[]
             {
-                new Pulumi.AzureNative.Network.Inputs.SubnetArgs
+                new NetworkInputs.SubnetArgs
                 {
                     Name = "drifttest-subnet",
                     AddressPrefix = "10.0.0.0/24",
                     PrivateEndpointNetworkPolicies = "Disabled",
                     PrivateLinkServiceNetworkPolicies = "Enabled"
                 },
-                new Pulumi.AzureNative.Network.Inputs.SubnetArgs
+                new NetworkInputs.SubnetArgs
                 {
                     Name = "drifttest-private-subnet",
                     AddressPrefix = "10.0.1.0/24",
                     PrivateEndpointNetworkPolicies = "Disabled",
                     PrivateLinkServiceNetworkPolicies = "Enabled"
                 },
-                new Pulumi.AzureNative.Network.Inputs.SubnetArgs
+                new NetworkInputs.SubnetArgs
                 {
                     Name = "drifttest-private-subnet-2",
                     AddressPrefix = "10.0.2.0/24",
@@ -162,9 +164,9 @@ return await Pulumi.Deployment.RunAsync(() =>
             ResourceGroupName = resourceGroupName,
             Location = location,
             Tags = tags,
-            Sku = new Pulumi.AzureNative.Storage.Inputs.SkuArgs
+            Sku = new StorageInputs.SkuArgs
             {
-                Name = SkuName.Standard_LRS
+                Name = Pulumi.AzureNative.Storage.SkuName.Standard_LRS
             },
             Kind = Kind.StorageV2,
             AccessTier = AccessTier.Hot,
@@ -174,9 +176,9 @@ return await Pulumi.Deployment.RunAsync(() =>
             EnableHttpsTrafficOnly = true,
             IsHnsEnabled = false,
             LargeFileSharesState = LargeFileSharesState.Disabled,
-            NetworkRuleSet = new Pulumi.AzureNative.Storage.Inputs.NetworkRuleSetArgs
+            NetworkRuleSet = new StorageInputs.NetworkRuleSetArgs
             {
-                DefaultAction = DefaultAction.Allow
+                DefaultAction = Pulumi.AzureNative.Storage.DefaultAction.Allow
             }
         });
         outputs["storageAccountId"] = storageAccount.Id;
@@ -193,7 +195,7 @@ return await Pulumi.Deployment.RunAsync(() =>
             ResourceGroupName = resourceGroupName,
             Location = location,
             Tags = tags,
-            Sku = new SkuDescriptionArgs
+            Sku = new WebInputs.SkuDescriptionArgs
             {
                 Name = "F1",
                 Tier = "Free"
@@ -216,12 +218,12 @@ return await Pulumi.Deployment.RunAsync(() =>
             ResourceGroupName = resourceGroupName,
             Location = location,
             Tags = tags,
-            Sku = new WorkspaceSkuArgs
+            Sku = new OpsInputs.WorkspaceSkuArgs
             {
                 Name = WorkspaceSkuNameEnum.PerGB2018
             },
             RetentionInDays = 30,
-            Features = new WorkspaceFeaturesArgs
+            Features = new OpsInputs.WorkspaceFeaturesArgs
             {
                 EnableLogAccessUsingOnlyResourcePermissions = true
             }
