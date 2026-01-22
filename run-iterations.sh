@@ -998,25 +998,25 @@ fi
 
 # Fastest badges
 if [ "$deploy_winner" = "Bicep" ]; then
-    sed -i 's/BICEP_DEPLOY_FASTEST/ <span class="badge winner">Fastest<\\/span>/g' "$HTML_FILE"
+    sed -i 's/BICEP_DEPLOY_FASTEST/ <span class="badge winner">Fastest<\/span>/g' "$HTML_FILE"
 else
     sed -i 's/BICEP_DEPLOY_FASTEST//g' "$HTML_FILE"
 fi
 
 if [ "$destroy_winner" = "Bicep" ]; then
-    sed -i 's/BICEP_DESTROY_FASTEST/ <span class="badge winner">Fastest<\\/span>/g' "$HTML_FILE"
+    sed -i 's/BICEP_DESTROY_FASTEST/ <span class="badge winner">Fastest<\/span>/g' "$HTML_FILE"
 else
     sed -i 's/BICEP_DESTROY_FASTEST//g' "$HTML_FILE"
 fi
 
 if [ "$deploy_winner" = "Terraform" ]; then
-    sed -i 's/TF_DEPLOY_FASTEST/ <span class="badge winner">Fastest<\\/span>/g' "$HTML_FILE"
+    sed -i 's/TF_DEPLOY_FASTEST/ <span class="badge winner">Fastest<\/span>/g' "$HTML_FILE"
 else
     sed -i 's/TF_DEPLOY_FASTEST//g' "$HTML_FILE"
 fi
 
 if [ "$destroy_winner" = "Terraform" ]; then
-    sed -i 's/TF_DESTROY_FASTEST/ <span class="badge winner">Fastest<\\/span>/g' "$HTML_FILE"
+    sed -i 's/TF_DESTROY_FASTEST/ <span class="badge winner">Fastest<\/span>/g' "$HTML_FILE"
 else
     sed -i 's/TF_DESTROY_FASTEST//g' "$HTML_FILE"
 fi
