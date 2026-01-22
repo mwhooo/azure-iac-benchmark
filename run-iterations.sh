@@ -732,6 +732,18 @@ cat > "$HTML_FILE" << 'HTMLEOF'
         </div>
         
         <div class="chart-container">
+            <h2>💾 Resource Usage (Deploy)</h2>
+            <div class="chart-grid">
+                <div class="chart-wrapper">
+                    <canvas id="memoryChart"></canvas>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="cpuChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
             <h2>⚖️ Speed Comparison Summary</h2>
             <table>
                 <thead>
@@ -860,13 +872,6 @@ cat > "$HTML_FILE" << 'HTMLEOF'
                         tension: 0.3,
                         fill: false,
                         borderWidth: 2
-                    },
-                    {
-                        borderColor: 'rgba(81,43,212,1)',
-                        backgroundColor: 'rgba(81,43,212,0.1)',
-                        tension: 0.3,
-                        fill: false,
-                        borderWidth: 3
                     }
                 ]
             },
@@ -876,6 +881,56 @@ cat > "$HTML_FILE" << 'HTMLEOF'
                 plugins: {
                     title: { display: true, text: 'Deploy Time per Iteration', font: { size: 16, weight: 'bold' } },
                     legend: { position: 'bottom' }
+                },
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Seconds' } } }
+            }
+        });
+        
+        // Memory Chart
+        new Chart(document.getElementById('memoryChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Bicep', 'Terraform', 'OpenTofu', 'Pulumi'],
+                datasets: [{
+                    label: 'Peak Memory (MB)',
+                    data: [BICEP_MEM_AVG, TF_MEM_AVG, OT_MEM_AVG, PULUMI_MEM_AVG],
+                    backgroundColor: ['rgba(0,120,212,0.8)', 'rgba(123,66,188,0.8)', 'rgba(255,218,24,0.8)', 'rgba(247,191,42,0.8)'],
+                    borderColor: ['rgba(0,120,212,1)', 'rgba(123,66,188,1)', 'rgba(255,218,24,1)', 'rgba(247,191,42,1)'],
+                    borderWidth: 2,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: { display: true, text: 'Peak Memory Usage - Deploy (MB)', font: { size: 16, weight: 'bold' } },
+                    legend: { display: false }
+                },
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'MB' } } }
+            }
+        });
+        
+        // CPU Chart
+        new Chart(document.getElementById('cpuChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Bicep', 'Terraform', 'OpenTofu', 'Pulumi'],
+                datasets: [{
+                    label: 'CPU Time (s)',
+                    data: [BICEP_CPU_AVG, TF_CPU_AVG, OT_CPU_AVG, PULUMI_CPU_AVG],
+                    backgroundColor: ['rgba(0,120,212,0.8)', 'rgba(123,66,188,0.8)', 'rgba(255,218,24,0.8)', 'rgba(247,191,42,0.8)'],
+                    borderColor: ['rgba(0,120,212,1)', 'rgba(123,66,188,1)', 'rgba(255,218,24,1)', 'rgba(247,191,42,1)'],
+                    borderWidth: 2,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: { display: true, text: 'CPU Time - Deploy (seconds)', font: { size: 16, weight: 'bold' } },
+                    legend: { display: false }
                 },
                 scales: { y: { beginAtZero: true, title: { display: true, text: 'Seconds' } } }
             }
@@ -1037,6 +1092,17 @@ sed -i "s|BICEP_DEPLOY_TIMES|$bicep_times|g" "$HTML_FILE"
 sed -i "s|TF_DEPLOY_TIMES|$tf_times|g" "$HTML_FILE"
 sed -i "s|OT_DEPLOY_TIMES|$ot_times|g" "$HTML_FILE"
 sed -i "s|PULUMI_DEPLOY_TIMES|$pulumi_times|g" "$HTML_FILE"
+
+# Memory and CPU data for charts
+sed -i "s/BICEP_MEM_AVG/$bicep_deploy_mem_avg/g" "$HTML_FILE"
+sed -i "s/TF_MEM_AVG/$tf_deploy_mem_avg/g" "$HTML_FILE"
+sed -i "s/OT_MEM_AVG/$ot_deploy_mem_avg/g" "$HTML_FILE"
+sed -i "s/PULUMI_MEM_AVG/$pulumi_deploy_mem_avg/g" "$HTML_FILE"
+
+sed -i "s/BICEP_CPU_AVG/$bicep_deploy_cpu_avg/g" "$HTML_FILE"
+sed -i "s/TF_CPU_AVG/$tf_deploy_cpu_avg/g" "$HTML_FILE"
+sed -i "s/OT_CPU_AVG/$ot_deploy_cpu_avg/g" "$HTML_FILE"
+sed -i "s/PULUMI_CPU_AVG/$pulumi_deploy_cpu_avg/g" "$HTML_FILE"
 
 # Comparison table - Calculate percentage differences from winner
 calc_pct_diff() {
