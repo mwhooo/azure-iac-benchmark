@@ -1,0 +1,26 @@
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/.terraform.lock.hcl
+terraform/terraform.tfvars
+
+# Pulumi
+pulumi/venv/
+pulumi/.pulumi/
+pulumi/__pycache__/
+pulumi/*.pyc
+
+# Results (keep structure, ignore data)
+results/*.json
+results/*.html
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
