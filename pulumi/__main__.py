@@ -38,8 +38,8 @@ unique_suffix = random.RandomString("unique-suffix",
     upper=False
 )
 
-# Get existing resource group
-resource_group = resources.get_resource_group(resource_group_name)
+# Resource group is created by the workflow - just reference it by name
+# (Previously used get_resource_group which fails if RG doesn't exist)
 
 # Network Security Group
 nsg = None
