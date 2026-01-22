@@ -100,9 +100,14 @@ Each tool deploys identical infrastructure:
 git clone https://github.com/mwhooo/azure-iac-benchmark.git
 cd azure-iac-benchmark
 
+# Login to Azure (required!)
+az login
+
 # Run setup (creates resource groups, initializes all tools)
 ./setup.sh
 ```
+
+> ⚠️ **Important**: You must be logged in to Azure CLI (`az login`) before running any benchmark scripts. All tools (Bicep, Terraform, OpenTofu, Pulumi) rely on your Azure CLI credentials for authentication. The setup script will verify this, but deployments will fail if you're not authenticated.
 
 The setup script will:
 1. ✅ Check all prerequisites are installed
