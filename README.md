@@ -41,6 +41,30 @@ Results from 3 iterations on identical Azure resources (January 2026):
 - **Most Consistent**: Pulumi (smallest variance across iterations)
 - **Note**: OpenTofu and Terraform have nearly identical performance (expected as OpenTofu is a Terraform fork)
 
+### 🔍 Why Terraform/OpenTofu Are Slower
+
+Terraform and OpenTofu consistently show longer deployment and especially destroy times compared to Bicep and Pulumi. This is due to fundamental architectural differences, not implementation quality:
+
+| Factor | Terraform/OpenTofu | Bicep | Pulumi |
+|--------|-------------------|-------|--------|
+| **State Management** | Client-side state file that must be read, reconciled, and written | Stateless - Azure IS the state | Lightweight state with efficient diffing |
+| **Plan Computation** | Always computes full execution plan before apply | No plan phase - direct ARM submission | Parallel resource graph analysis |
+| **API Layer** | Provider abstraction → Azure API (extra hop) | Direct ARM API compilation | Native Azure SDK calls |
+| **Parallelization** | Conservative default parallelism (`-parallelism=10`) | ARM handles orchestration | Aggressive automatic parallelization |
+| **Destroy Behavior** | Sequential dependency-ordered deletion with confirmations | Single ARM deletion call | Parallel deletion with dependency awareness |
+
+**Key Takeaways:**
+
+1. **State overhead**: Terraform's state file is a feature (drift detection, import, collaboration), but adds I/O overhead. Bicep uses Azure Resource Manager as its source of truth.
+
+2. **Plan phase**: Even with `--auto-approve`, Terraform must compute what changes to make. Bicep compiles directly to an ARM template that Azure evaluates.
+
+3. **Provider architecture**: Terraform's provider model enables multi-cloud support but adds an abstraction layer. Bicep and Pulumi talk directly to Azure APIs.
+
+4. **Destroy is the biggest gap**: Terraform's destroy is notably slower (4x) because it carefully sequences deletions and waits for confirmations. ARM deployments can delete resource groups atomically.
+
+> **Note**: These tradeoffs may be worthwhile for your use case. Terraform/OpenTofu offer superior multi-cloud support, mature ecosystem, and excellent state management for team collaboration. Choose based on your requirements, not just speed.
+
 ## 🏗️ Resources Deployed
 
 Each tool deploys identical infrastructure:
@@ -121,11 +145,11 @@ azure-iac-benchmark/
 │   ├── variables.tf
 │   ├── outputs.tf
 │   └── providers.tf
-├── pulumi/                   # Pulumi Python project
-│   ├── __main__.py
+├── pulumi-dotnet/            # Pulumi C#/.NET project
+│   ├── Program.cs
 │   ├── Pulumi.yaml
 │   ├── Pulumi.benchmark.yaml # Stack configuration
-│   └── requirements.txt
+│   └── azure-iac-benchmark.csproj
 ├── results/                  # Benchmark results (gitignored)
 │   ├── benchmark_*.json      # Raw timing data
 │   └── benchmark_*.html      # Interactive HTML reports
