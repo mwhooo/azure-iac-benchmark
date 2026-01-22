@@ -1,13 +1,14 @@
 config:
   azure-native:location: westeurope
-  azure-iac-benchmark-dotnet:resourceGroupName: azure-iac-benchmark-pulumi-dotnet-rg
+  azure-iac-benchmark-dotnet:resourceGroupName: azure-iac-benchmark-pulumi-rg
   azure-iac-benchmark-dotnet:location: westeurope
   azure-iac-benchmark-dotnet:environmentName: benchmark
   azure-iac-benchmark-dotnet:applicationName: iacbenchmark
-  azure-iac-benchmark-dotnet:deployVnet: true
-  azure-iac-benchmark-dotnet:deployNsg: true
-  azure-iac-benchmark-dotnet:deployStorage: true
-  azure-iac-benchmark-dotnet:deployAppServicePlan: true
-  azure-iac-benchmark-dotnet:deployLogAnalytics: true
-  azure-iac-benchmark-dotnet:deployKeyVault: false
-  azure-iac-benchmark-dotnet:deployServiceBus: false
+  azure-iac-benchmark-dotnet:deployVnet: "true"
+  azure-iac-benchmark-dotnet:deployNsg: "true"
+  azure-iac-benchmark-dotnet:deployStorage: "true"
+  azure-iac-benchmark-dotnet:deployAppServicePlan: "true"
+  azure-iac-benchmark-dotnet:deployLogAnalytics: "true"
+  azure-iac-benchmark-dotnet:deployKeyVault: "false"
+  azure-iac-benchmark-dotnet:deployServiceBus: "false"
+encryptionsalt: v1:RNy7u6TedPc=:v1:AwyqG6v5agGYjqJt:91lgZMuS3B6evMBdG0hRtRLyHILVVg==

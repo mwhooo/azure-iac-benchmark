@@ -55,6 +55,24 @@ declare -a OPENTOFU_DESTROY_TIMES
 declare -a PULUMI_DEPLOY_TIMES
 declare -a PULUMI_DESTROY_TIMES
 
+# Resource usage arrays (memory in MB, CPU in seconds)
+declare -a BICEP_DEPLOY_MEM
+declare -a BICEP_DESTROY_MEM
+declare -a BICEP_DEPLOY_CPU
+declare -a BICEP_DESTROY_CPU
+declare -a TERRAFORM_DEPLOY_MEM
+declare -a TERRAFORM_DESTROY_MEM
+declare -a TERRAFORM_DEPLOY_CPU
+declare -a TERRAFORM_DESTROY_CPU
+declare -a OPENTOFU_DEPLOY_MEM
+declare -a OPENTOFU_DESTROY_MEM
+declare -a OPENTOFU_DEPLOY_CPU
+declare -a OPENTOFU_DESTROY_CPU
+declare -a PULUMI_DEPLOY_MEM
+declare -a PULUMI_DESTROY_MEM
+declare -a PULUMI_DEPLOY_CPU
+declare -a PULUMI_DESTROY_CPU
+
 mkdir -p "$RESULTS_DIR"
 
 echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
@@ -68,29 +86,57 @@ clean_rg() {
     sleep 5
 }
 
+# Helper: Run command with resource monitoring
+# Usage: run_with_metrics "command" time_var mem_var cpu_var
+# Sets variables: METRICS_TIME, METRICS_MEM_MB, METRICS_CPU_SEC
+run_with_metrics() {
+    local cmd="$1"
+    local time_output
+    local start end
+    
+    # Create temp file for time output
+    local time_file=$(mktemp)
+    
+    start=$(date +%s.%N)
+    # Run command with GNU time, capture metrics to file
+    /usr/bin/time -v bash -c "$cmd" 2> "$time_file" || true
+    end=$(date +%s.%N)
+    
+    # Parse metrics from time output
+    METRICS_TIME=$(echo "$end - $start" | bc)
+    METRICS_MEM_KB=$(grep "Maximum resident set size" "$time_file" | awk '{print $NF}')
+    METRICS_MEM_MB=$(echo "scale=2; ${METRICS_MEM_KB:-0} / 1024" | bc)
+    local user_time=$(grep "User time" "$time_file" | awk '{print $NF}')
+    local sys_time=$(grep "System time" "$time_file" | awk '{print $NF}')
+    METRICS_CPU_SEC=$(echo "${user_time:-0} + ${sys_time:-0}" | bc)
+    
+    rm -f "$time_file"
+}
+
 # Benchmark Bicep
 benchmark_bicep() {
     local iteration=$1
     echo -e "\n${BLUE}[Bicep] Iteration $iteration - Deploying...${NC}"
     
-    local start=$(date +%s.%N)
-    az deployment group create \
-        --resource-group "$BICEP_RG" \
-        --template-file "$SCRIPT_DIR/bicep/main-template.bicep" \
-        --parameters "$SCRIPT_DIR/bicep/main-template.bicepparam" \
-        --output none 2>&1
-    local end=$(date +%s.%N)
-    local deploy_time=$(echo "$end - $start" | bc)
-    BICEP_DEPLOY_TIMES+=("$deploy_time")
-    echo -e "${GREEN}  ✓ Deploy: ${deploy_time}s${NC}"
+    run_with_metrics "az deployment group create \
+        --resource-group '$BICEP_RG' \
+        --template-file '$SCRIPT_DIR/bicep/main-template.bicep' \
+        --parameters '$SCRIPT_DIR/bicep/main-template.bicepparam' \
+        --output none 2>&1"
+    
+    BICEP_DEPLOY_TIMES+=("$METRICS_TIME")
+    BICEP_DEPLOY_MEM+=("$METRICS_MEM_MB")
+    BICEP_DEPLOY_CPU+=("$METRICS_CPU_SEC")
+    echo -e "${GREEN}  ✓ Deploy: ${METRICS_TIME}s | Mem: ${METRICS_MEM_MB}MB | CPU: ${METRICS_CPU_SEC}s${NC}"
     
     echo -e "${BLUE}[Bicep] Iteration $iteration - Destroying...${NC}"
-    start=$(date +%s.%N)
-    clean_rg "$BICEP_RG"
-    end=$(date +%s.%N)
-    local destroy_time=$(echo "$end - $start" | bc)
-    BICEP_DESTROY_TIMES+=("$destroy_time")
-    echo -e "${GREEN}  ✓ Destroy: ${destroy_time}s${NC}"
+    run_with_metrics "az resource list --resource-group '$BICEP_RG' --query '[].id' -o tsv 2>/dev/null | xargs -r -I {} az resource delete --ids {} 2>/dev/null || true"
+    
+    BICEP_DESTROY_TIMES+=("$METRICS_TIME")
+    BICEP_DESTROY_MEM+=("$METRICS_MEM_MB")
+    BICEP_DESTROY_CPU+=("$METRICS_CPU_SEC")
+    echo -e "${GREEN}  ✓ Destroy: ${METRICS_TIME}s | Mem: ${METRICS_MEM_MB}MB | CPU: ${METRICS_CPU_SEC}s${NC}"
+    sleep 5
 }
 
 # Benchmark Terraform
@@ -100,20 +146,20 @@ benchmark_terraform() {
     
     cd "$SCRIPT_DIR/terraform"
     
-    local start=$(date +%s.%N)
-    terraform apply -auto-approve -var="resource_group_name=$TERRAFORM_RG" > /dev/null 2>&1
-    local end=$(date +%s.%N)
-    local deploy_time=$(echo "$end - $start" | bc)
-    TERRAFORM_DEPLOY_TIMES+=("$deploy_time")
-    echo -e "${GREEN}  ✓ Deploy: ${deploy_time}s${NC}"
+    run_with_metrics "terraform apply -auto-approve -var=\"resource_group_name=$TERRAFORM_RG\" > /dev/null 2>&1"
+    
+    TERRAFORM_DEPLOY_TIMES+=("$METRICS_TIME")
+    TERRAFORM_DEPLOY_MEM+=("$METRICS_MEM_MB")
+    TERRAFORM_DEPLOY_CPU+=("$METRICS_CPU_SEC")
+    echo -e "${GREEN}  ✓ Deploy: ${METRICS_TIME}s | Mem: ${METRICS_MEM_MB}MB | CPU: ${METRICS_CPU_SEC}s${NC}"
     
     echo -e "${BLUE}[Terraform] Iteration $iteration - Destroying...${NC}"
-    start=$(date +%s.%N)
-    terraform destroy -auto-approve -var="resource_group_name=$TERRAFORM_RG" > /dev/null 2>&1
-    end=$(date +%s.%N)
-    local destroy_time=$(echo "$end - $start" | bc)
-    TERRAFORM_DESTROY_TIMES+=("$destroy_time")
-    echo -e "${GREEN}  ✓ Destroy: ${destroy_time}s${NC}"
+    run_with_metrics "terraform destroy -auto-approve -var=\"resource_group_name=$TERRAFORM_RG\" > /dev/null 2>&1"
+    
+    TERRAFORM_DESTROY_TIMES+=("$METRICS_TIME")
+    TERRAFORM_DESTROY_MEM+=("$METRICS_MEM_MB")
+    TERRAFORM_DESTROY_CPU+=("$METRICS_CPU_SEC")
+    echo -e "${GREEN}  ✓ Destroy: ${METRICS_TIME}s | Mem: ${METRICS_MEM_MB}MB | CPU: ${METRICS_CPU_SEC}s${NC}"
     
     cd "$SCRIPT_DIR"
 }
@@ -125,20 +171,20 @@ benchmark_opentofu() {
     
     cd "$SCRIPT_DIR/opentofu"
     
-    local start=$(date +%s.%N)
-    tofu apply -auto-approve -var="resource_group_name=$OPENTOFU_RG" > /dev/null 2>&1
-    local end=$(date +%s.%N)
-    local deploy_time=$(echo "$end - $start" | bc)
-    OPENTOFU_DEPLOY_TIMES+=("$deploy_time")
-    echo -e "${GREEN}  ✓ Deploy: ${deploy_time}s${NC}"
+    run_with_metrics "tofu apply -auto-approve -var=\"resource_group_name=$OPENTOFU_RG\" > /dev/null 2>&1"
+    
+    OPENTOFU_DEPLOY_TIMES+=("$METRICS_TIME")
+    OPENTOFU_DEPLOY_MEM+=("$METRICS_MEM_MB")
+    OPENTOFU_DEPLOY_CPU+=("$METRICS_CPU_SEC")
+    echo -e "${GREEN}  ✓ Deploy: ${METRICS_TIME}s | Mem: ${METRICS_MEM_MB}MB | CPU: ${METRICS_CPU_SEC}s${NC}"
     
     echo -e "${BLUE}[OpenTofu] Iteration $iteration - Destroying...${NC}"
-    start=$(date +%s.%N)
-    tofu destroy -auto-approve -var="resource_group_name=$OPENTOFU_RG" > /dev/null 2>&1
-    end=$(date +%s.%N)
-    local destroy_time=$(echo "$end - $start" | bc)
-    OPENTOFU_DESTROY_TIMES+=("$destroy_time")
-    echo -e "${GREEN}  ✓ Destroy: ${destroy_time}s${NC}"
+    run_with_metrics "tofu destroy -auto-approve -var=\"resource_group_name=$OPENTOFU_RG\" > /dev/null 2>&1"
+    
+    OPENTOFU_DESTROY_TIMES+=("$METRICS_TIME")
+    OPENTOFU_DESTROY_MEM+=("$METRICS_MEM_MB")
+    OPENTOFU_DESTROY_CPU+=("$METRICS_CPU_SEC")
+    echo -e "${GREEN}  ✓ Destroy: ${METRICS_TIME}s | Mem: ${METRICS_MEM_MB}MB | CPU: ${METRICS_CPU_SEC}s${NC}"
     
     cd "$SCRIPT_DIR"
 }
@@ -154,20 +200,26 @@ benchmark_pulumi() {
     pulumi login --local 2>/dev/null || true
     pulumi stack select benchmark 2>/dev/null || pulumi stack init benchmark 2>/dev/null || true
     
-    local start=$(date +%s.%N)
-    pulumi up --yes --skip-preview 2>&1 | tail -10 || { echo -e "${RED}  ✗ Pulumi deploy failed${NC}"; PULUMI_DEPLOY_TIMES+=("0"); cd "$SCRIPT_DIR"; return; }
-    local end=$(date +%s.%N)
-    local deploy_time=$(echo "$end - $start" | bc)
-    PULUMI_DEPLOY_TIMES+=("$deploy_time")
-    echo -e "${GREEN}  ✓ Deploy: ${deploy_time}s${NC}"
+    run_with_metrics "pulumi up --yes --skip-preview 2>&1 | tail -10"
+    
+    if [ "$METRICS_TIME" == "0" ] || [ -z "$METRICS_TIME" ]; then
+        echo -e "${RED}  ✗ Pulumi deploy failed${NC}"
+        PULUMI_DEPLOY_TIMES+=("0"); PULUMI_DEPLOY_MEM+=("0"); PULUMI_DEPLOY_CPU+=("0")
+        cd "$SCRIPT_DIR"; return
+    fi
+    
+    PULUMI_DEPLOY_TIMES+=("$METRICS_TIME")
+    PULUMI_DEPLOY_MEM+=("$METRICS_MEM_MB")
+    PULUMI_DEPLOY_CPU+=("$METRICS_CPU_SEC")
+    echo -e "${GREEN}  ✓ Deploy: ${METRICS_TIME}s | Mem: ${METRICS_MEM_MB}MB | CPU: ${METRICS_CPU_SEC}s${NC}"
     
     echo -e "${BLUE}[Pulumi] Iteration $iteration - Destroying...${NC}"
-    start=$(date +%s.%N)
-    pulumi destroy --yes --skip-preview 2>&1 | tail -5 || { echo -e "${RED}  ✗ Pulumi destroy failed${NC}"; PULUMI_DESTROY_TIMES+=("0"); cd "$SCRIPT_DIR"; return; }
-    end=$(date +%s.%N)
-    local destroy_time=$(echo "$end - $start" | bc)
-    PULUMI_DESTROY_TIMES+=("$destroy_time")
-    echo -e "${GREEN}  ✓ Destroy: ${destroy_time}s${NC}"
+    run_with_metrics "pulumi destroy --yes --skip-preview 2>&1 | tail -5"
+    
+    PULUMI_DESTROY_TIMES+=("$METRICS_TIME")
+    PULUMI_DESTROY_MEM+=("$METRICS_MEM_MB")
+    PULUMI_DESTROY_CPU+=("$METRICS_CPU_SEC")
+    echo -e "${GREEN}  ✓ Destroy: ${METRICS_TIME}s | Mem: ${METRICS_MEM_MB}MB | CPU: ${METRICS_CPU_SEC}s${NC}"
     
     cd "$SCRIPT_DIR"
 }
@@ -218,6 +270,26 @@ read ot_destroy_min ot_destroy_max ot_destroy_avg <<< $(calc_stats OPENTOFU_DEST
 read pulumi_deploy_min pulumi_deploy_max pulumi_deploy_avg <<< $(calc_stats PULUMI_DEPLOY_TIMES)
 read pulumi_destroy_min pulumi_destroy_max pulumi_destroy_avg <<< $(calc_stats PULUMI_DESTROY_TIMES)
 
+# Calculate memory stats
+read bicep_deploy_mem_min bicep_deploy_mem_max bicep_deploy_mem_avg <<< $(calc_stats BICEP_DEPLOY_MEM)
+read bicep_destroy_mem_min bicep_destroy_mem_max bicep_destroy_mem_avg <<< $(calc_stats BICEP_DESTROY_MEM)
+read tf_deploy_mem_min tf_deploy_mem_max tf_deploy_mem_avg <<< $(calc_stats TERRAFORM_DEPLOY_MEM)
+read tf_destroy_mem_min tf_destroy_mem_max tf_destroy_mem_avg <<< $(calc_stats TERRAFORM_DESTROY_MEM)
+read ot_deploy_mem_min ot_deploy_mem_max ot_deploy_mem_avg <<< $(calc_stats OPENTOFU_DEPLOY_MEM)
+read ot_destroy_mem_min ot_destroy_mem_max ot_destroy_mem_avg <<< $(calc_stats OPENTOFU_DESTROY_MEM)
+read pulumi_deploy_mem_min pulumi_deploy_mem_max pulumi_deploy_mem_avg <<< $(calc_stats PULUMI_DEPLOY_MEM)
+read pulumi_destroy_mem_min pulumi_destroy_mem_max pulumi_destroy_mem_avg <<< $(calc_stats PULUMI_DESTROY_MEM)
+
+# Calculate CPU stats
+read bicep_deploy_cpu_min bicep_deploy_cpu_max bicep_deploy_cpu_avg <<< $(calc_stats BICEP_DEPLOY_CPU)
+read bicep_destroy_cpu_min bicep_destroy_cpu_max bicep_destroy_cpu_avg <<< $(calc_stats BICEP_DESTROY_CPU)
+read tf_deploy_cpu_min tf_deploy_cpu_max tf_deploy_cpu_avg <<< $(calc_stats TERRAFORM_DEPLOY_CPU)
+read tf_destroy_cpu_min tf_destroy_cpu_max tf_destroy_cpu_avg <<< $(calc_stats TERRAFORM_DESTROY_CPU)
+read ot_deploy_cpu_min ot_deploy_cpu_max ot_deploy_cpu_avg <<< $(calc_stats OPENTOFU_DEPLOY_CPU)
+read ot_destroy_cpu_min ot_destroy_cpu_max ot_destroy_cpu_avg <<< $(calc_stats OPENTOFU_DESTROY_CPU)
+read pulumi_deploy_cpu_min pulumi_deploy_cpu_max pulumi_deploy_cpu_avg <<< $(calc_stats PULUMI_DEPLOY_CPU)
+read pulumi_destroy_cpu_min pulumi_destroy_cpu_max pulumi_destroy_cpu_avg <<< $(calc_stats PULUMI_DESTROY_CPU)
+
 # Print summary
 echo -e "\n${CYAN}═══════════════════════════════════════════════════════════════${NC}"
 echo -e "${CYAN}                    BENCHMARK RESULTS                           ${NC}"
@@ -238,6 +310,22 @@ printf "%-12s %10.2f %10.2f %10.2f\n" "Bicep" "$bicep_destroy_min" "$bicep_destr
 printf "%-12s %10.2f %10.2f %10.2f\n" "Terraform" "$tf_destroy_min" "$tf_destroy_max" "$tf_destroy_avg"
 printf "%-12s %10.2f %10.2f %10.2f\n" "OpenTofu" "$ot_destroy_min" "$ot_destroy_max" "$ot_destroy_avg"
 printf "%-12s %10.2f %10.2f %10.2f\n" "Pulumi" "$pulumi_destroy_min" "$pulumi_destroy_max" "$pulumi_destroy_avg"
+
+echo -e "\n${GREEN}PEAK MEMORY USAGE - DEPLOY (MB):${NC}"
+printf "%-12s %10s %10s %10s\n" "Tool" "Min" "Max" "Avg"
+printf "%-12s %10s %10s %10s\n" "--------" "------" "------" "------"
+printf "%-12s %10.2f %10.2f %10.2f\n" "Bicep" "$bicep_deploy_mem_min" "$bicep_deploy_mem_max" "$bicep_deploy_mem_avg"
+printf "%-12s %10.2f %10.2f %10.2f\n" "Terraform" "$tf_deploy_mem_min" "$tf_deploy_mem_max" "$tf_deploy_mem_avg"
+printf "%-12s %10.2f %10.2f %10.2f\n" "OpenTofu" "$ot_deploy_mem_min" "$ot_deploy_mem_max" "$ot_deploy_mem_avg"
+printf "%-12s %10.2f %10.2f %10.2f\n" "Pulumi" "$pulumi_deploy_mem_min" "$pulumi_deploy_mem_max" "$pulumi_deploy_mem_avg"
+
+echo -e "\n${GREEN}CPU TIME - DEPLOY (seconds):${NC}"
+printf "%-12s %10s %10s %10s\n" "Tool" "Min" "Max" "Avg"
+printf "%-12s %10s %10s %10s\n" "--------" "------" "------" "------"
+printf "%-12s %10.2f %10.2f %10.2f\n" "Bicep" "$bicep_deploy_cpu_min" "$bicep_deploy_cpu_max" "$bicep_deploy_cpu_avg"
+printf "%-12s %10.2f %10.2f %10.2f\n" "Terraform" "$tf_deploy_cpu_min" "$tf_deploy_cpu_max" "$tf_deploy_cpu_avg"
+printf "%-12s %10.2f %10.2f %10.2f\n" "OpenTofu" "$ot_deploy_cpu_min" "$ot_deploy_cpu_max" "$ot_deploy_cpu_avg"
+printf "%-12s %10.2f %10.2f %10.2f\n" "Pulumi" "$pulumi_deploy_cpu_min" "$pulumi_deploy_cpu_max" "$pulumi_deploy_cpu_avg"
 
 # Determine winners (only consider tools that were actually run - non-zero averages)
 deploy_winner="None"
@@ -276,19 +364,27 @@ cat > "$RESULTS_DIR/benchmark_${TIMESTAMP}.json" << EOF
   "results": {
     "bicep": {
       "deploy": { "times": [$(IFS=,; echo "${BICEP_DEPLOY_TIMES[*]}")], "min": $bicep_deploy_min, "max": $bicep_deploy_max, "avg": $bicep_deploy_avg },
-      "destroy": { "times": [$(IFS=,; echo "${BICEP_DESTROY_TIMES[*]}")], "min": $bicep_destroy_min, "max": $bicep_destroy_max, "avg": $bicep_destroy_avg }
+      "destroy": { "times": [$(IFS=,; echo "${BICEP_DESTROY_TIMES[*]}")], "min": $bicep_destroy_min, "max": $bicep_destroy_max, "avg": $bicep_destroy_avg },
+      "memory_mb": { "deploy_avg": $bicep_deploy_mem_avg, "destroy_avg": $bicep_destroy_mem_avg },
+      "cpu_sec": { "deploy_avg": $bicep_deploy_cpu_avg, "destroy_avg": $bicep_destroy_cpu_avg }
     },
     "terraform": {
       "deploy": { "times": [$(IFS=,; echo "${TERRAFORM_DEPLOY_TIMES[*]}")], "min": $tf_deploy_min, "max": $tf_deploy_max, "avg": $tf_deploy_avg },
-      "destroy": { "times": [$(IFS=,; echo "${TERRAFORM_DESTROY_TIMES[*]}")], "min": $tf_destroy_min, "max": $tf_destroy_max, "avg": $tf_destroy_avg }
+      "destroy": { "times": [$(IFS=,; echo "${TERRAFORM_DESTROY_TIMES[*]}")], "min": $tf_destroy_min, "max": $tf_destroy_max, "avg": $tf_destroy_avg },
+      "memory_mb": { "deploy_avg": $tf_deploy_mem_avg, "destroy_avg": $tf_destroy_mem_avg },
+      "cpu_sec": { "deploy_avg": $tf_deploy_cpu_avg, "destroy_avg": $tf_destroy_cpu_avg }
     },
     "opentofu": {
       "deploy": { "times": [$(IFS=,; echo "${OPENTOFU_DEPLOY_TIMES[*]}")], "min": $ot_deploy_min, "max": $ot_deploy_max, "avg": $ot_deploy_avg },
-      "destroy": { "times": [$(IFS=,; echo "${OPENTOFU_DESTROY_TIMES[*]}")], "min": $ot_destroy_min, "max": $ot_destroy_max, "avg": $ot_destroy_avg }
+      "destroy": { "times": [$(IFS=,; echo "${OPENTOFU_DESTROY_TIMES[*]}")], "min": $ot_destroy_min, "max": $ot_destroy_max, "avg": $ot_destroy_avg },
+      "memory_mb": { "deploy_avg": $ot_deploy_mem_avg, "destroy_avg": $ot_destroy_mem_avg },
+      "cpu_sec": { "deploy_avg": $ot_deploy_cpu_avg, "destroy_avg": $ot_destroy_cpu_avg }
     },
     "pulumi": {
       "deploy": { "times": [$(IFS=,; echo "${PULUMI_DEPLOY_TIMES[*]}")], "min": $pulumi_deploy_min, "max": $pulumi_deploy_max, "avg": $pulumi_deploy_avg },
-      "destroy": { "times": [$(IFS=,; echo "${PULUMI_DESTROY_TIMES[*]}")], "min": $pulumi_destroy_min, "max": $pulumi_destroy_max, "avg": $pulumi_destroy_avg }
+      "destroy": { "times": [$(IFS=,; echo "${PULUMI_DESTROY_TIMES[*]}")], "min": $pulumi_destroy_min, "max": $pulumi_destroy_max, "avg": $pulumi_destroy_avg },
+      "memory_mb": { "deploy_avg": $pulumi_deploy_mem_avg, "destroy_avg": $pulumi_destroy_mem_avg },
+      "cpu_sec": { "deploy_avg": $pulumi_deploy_cpu_avg, "destroy_avg": $pulumi_destroy_cpu_avg }
     }
   },
   "winners": {
