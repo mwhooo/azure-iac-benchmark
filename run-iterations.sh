@@ -134,8 +134,12 @@ benchmark_pulumi() {
     export PATH="$PATH:$HOME/.pulumi/bin"
     export PULUMI_CONFIG_PASSPHRASE=""
     
+    # Ensure we're logged in and on the right stack
+    pulumi login --local 2>/dev/null || true
+    pulumi stack select benchmark 2>/dev/null || pulumi stack init benchmark 2>/dev/null || true
+    
     local start=$(date +%s.%N)
-    pulumi up --yes --skip-preview > /dev/null 2>&1
+    pulumi up --yes --skip-preview 2>&1 | tail -5 || { echo -e "${RED}  ✗ Pulumi deploy failed${NC}"; PULUMI_DEPLOY_TIMES+=("0"); deactivate; cd "$SCRIPT_DIR"; return; }
     local end=$(date +%s.%N)
     local deploy_time=$(echo "$end - $start" | bc)
     PULUMI_DEPLOY_TIMES+=("$deploy_time")
@@ -143,7 +147,7 @@ benchmark_pulumi() {
     
     echo -e "${BLUE}[Pulumi] Iteration $iteration - Destroying...${NC}"
     start=$(date +%s.%N)
-    pulumi destroy --yes --skip-preview > /dev/null 2>&1
+    pulumi destroy --yes --skip-preview 2>&1 | tail -5 || { echo -e "${RED}  ✗ Pulumi destroy failed${NC}"; PULUMI_DESTROY_TIMES+=("0"); deactivate; cd "$SCRIPT_DIR"; return; }
     end=$(date +%s.%N)
     local destroy_time=$(echo "$end - $start" | bc)
     PULUMI_DESTROY_TIMES+=("$destroy_time")
@@ -161,8 +165,12 @@ benchmark_pulumi_dotnet() {
     cd "$SCRIPT_DIR/pulumi-dotnet"
     export PULUMI_CONFIG_PASSPHRASE=""
     
+    # Ensure we're logged in and on the right stack
+    pulumi login --local 2>/dev/null || true
+    pulumi stack select benchmark 2>/dev/null || pulumi stack init benchmark 2>/dev/null || true
+    
     local start=$(date +%s.%N)
-    pulumi up --yes --skip-preview > /dev/null 2>&1
+    pulumi up --yes --skip-preview 2>&1 | tail -5 || { echo -e "${RED}  ✗ Pulumi .NET deploy failed${NC}"; PULUMI_DOTNET_DEPLOY_TIMES+=("0"); cd "$SCRIPT_DIR"; return; }
     local end=$(date +%s.%N)
     local deploy_time=$(echo "$end - $start" | bc)
     PULUMI_DOTNET_DEPLOY_TIMES+=("$deploy_time")
@@ -170,7 +178,7 @@ benchmark_pulumi_dotnet() {
     
     echo -e "${BLUE}[Pulumi .NET] Iteration $iteration - Destroying...${NC}"
     start=$(date +%s.%N)
-    pulumi destroy --yes --skip-preview > /dev/null 2>&1
+    pulumi destroy --yes --skip-preview 2>&1 | tail -5 || { echo -e "${RED}  ✗ Pulumi .NET destroy failed${NC}"; PULUMI_DOTNET_DESTROY_TIMES+=("0"); cd "$SCRIPT_DIR"; return; }
     end=$(date +%s.%N)
     local destroy_time=$(echo "$end - $start" | bc)
     PULUMI_DOTNET_DESTROY_TIMES+=("$destroy_time")
