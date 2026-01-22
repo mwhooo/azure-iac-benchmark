@@ -214,13 +214,29 @@ az group delete -n azure-iac-benchmark-opentofu-rg --yes --no-wait
 az group delete -n azure-iac-benchmark-pulumi-rg --yes --no-wait
 ```
 
+## � GitHub Actions
+
+Run benchmarks directly from GitHub without local setup:
+
+1. **Setup Azure Credentials**: Add `AZURE_CREDENTIALS` secret to your repository
+   ```bash
+   az ad sp create-for-rbac --name "iac-benchmark" --role contributor \
+     --scopes /subscriptions/{subscription-id} --sdk-auth
+   ```
+   Copy the JSON output to GitHub → Settings → Secrets → `AZURE_CREDENTIALS`
+
+2. **Run Benchmark**: Go to Actions → "Run IaC Benchmark" → "Run workflow"
+   - Choose number of iterations (1, 3, or 5)
+   - Results are uploaded as artifacts
+   - Summary appears in the workflow run
+
 ## 🤝 Contributing
 
 Contributions welcome! Ideas for improvement:
 
 - [x] ~~Add OpenTofu to the comparison~~
+- [x] ~~GitHub Actions workflow for automated benchmarks~~
 - [ ] Add AWS CDK / CloudFormation comparison
-- [ ] GitHub Actions workflow for automated benchmarks
 - [ ] More complex infrastructure scenarios
 - [ ] Cost comparison alongside speed
 - [ ] Memory/CPU usage during deployments

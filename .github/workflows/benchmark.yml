@@ -1,0 +1,171 @@
+name: Run IaC Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: 'Number of benchmark iterations'
+        required: true
+        default: '3'
+        type: choice
+        options:
+          - '1'
+          - '3'
+          - '5'
+      tools:
+        description: 'Tools to benchmark'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - 'all'
+          - 'bicep-only'
+          - 'terraform-only'
+          - 'opentofu-only'
+          - 'pulumi-only'
+
+env:
+  LOCATION: westeurope
+  BICEP_RG: azure-iac-benchmark-bicep-rg
+  TERRAFORM_RG: azure-iac-benchmark-terraform-rg
+  OPENTOFU_RG: azure-iac-benchmark-opentofu-rg
+  PULUMI_RG: azure-iac-benchmark-pulumi-rg
+
+jobs:
+  benchmark:
+    name: Run Benchmark (${{ inputs.iterations }} iterations)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_wrapper: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Pulumi
+        uses: pulumi/actions@v5
+
+      - name: Install dependencies
+        run: |
+          # Install bc for calculations
+          sudo apt-get update && sudo apt-get install -y bc
+          
+          # Setup Pulumi
+          cd pulumi
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+          cd ..
+
+      - name: Create Resource Groups
+        run: |
+          az group create -n $BICEP_RG -l $LOCATION -o none 2>/dev/null || true
+          az group create -n $TERRAFORM_RG -l $LOCATION -o none 2>/dev/null || true
+          az group create -n $OPENTOFU_RG -l $LOCATION -o none 2>/dev/null || true
+          az group create -n $PULUMI_RG -l $LOCATION -o none 2>/dev/null || true
+
+      - name: Initialize Terraform
+        run: |
+          cd terraform
+          terraform init -input=false
+          cat > terraform.tfvars << EOF
+          resource_group_name = "$TERRAFORM_RG"
+          location            = "$LOCATION"
+          EOF
+
+      - name: Initialize OpenTofu
+        run: |
+          cd opentofu
+          tofu init -input=false
+          cat > terraform.tfvars << EOF
+          resource_group_name = "$OPENTOFU_RG"
+          location            = "$LOCATION"
+          EOF
+
+      - name: Initialize Pulumi
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ""
+        run: |
+          cd pulumi
+          source venv/bin/activate
+          pulumi login --local
+          pulumi stack init benchmark --non-interactive 2>/dev/null || pulumi stack select benchmark
+          pulumi config set azure-native:location $LOCATION
+          pulumi config set resourceGroupName $PULUMI_RG
+          pulumi config set location $LOCATION
+
+      - name: Run Benchmark
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ""
+        run: |
+          chmod +x run-iterations.sh
+          ./run-iterations.sh ${{ inputs.iterations }}
+
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.run_number }}
+          path: |
+            results/*.json
+            results/*.html
+          retention-days: 90
+
+      - name: Post Summary
+        run: |
+          # Find the latest results file
+          LATEST_JSON=$(ls -t results/*.json | head -1)
+          
+          echo "## 🏁 Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Iterations:** ${{ inputs.iterations }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Extract and display results
+          echo "### Deployment Times (avg)" >> $GITHUB_STEP_SUMMARY
+          echo "| Tool | Average |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Bicep | $(jq -r '.results.bicep.deploy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
+          echo "| Terraform | $(jq -r '.results.terraform.deploy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
+          echo "| OpenTofu | $(jq -r '.results.opentofu.deploy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pulumi | $(jq -r '.results.pulumi.deploy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Destroy Times (avg)" >> $GITHUB_STEP_SUMMARY
+          echo "| Tool | Average |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Bicep | $(jq -r '.results.bicep.destroy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
+          echo "| Terraform | $(jq -r '.results.terraform.destroy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
+          echo "| OpenTofu | $(jq -r '.results.opentofu.destroy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pulumi | $(jq -r '.results.pulumi.destroy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### 🏆 Winners" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deploy:** $(jq -r '.winners.deploy' $LATEST_JSON)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Destroy:** $(jq -r '.winners.destroy' $LATEST_JSON)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Cleanup Resource Groups
+        if: always()
+        run: |
+          echo "Cleaning up resources..."
+          az group delete -n $BICEP_RG --yes --no-wait 2>/dev/null || true
+          az group delete -n $TERRAFORM_RG --yes --no-wait 2>/dev/null || true
+          az group delete -n $OPENTOFU_RG --yes --no-wait 2>/dev/null || true
+          az group delete -n $PULUMI_RG --yes --no-wait 2>/dev/null || true
