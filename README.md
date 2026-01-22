@@ -23,7 +23,7 @@ Results from 3 iterations on identical Azure resources (January 2026):
 | 🥇 Pulumi | 23.13s | 24.23s | **23.64s** |
 | 🥈 Bicep | 34.73s | 35.62s | **35.22s** |
 | 🥉 Terraform | 42.15s | 46.81s | **44.15s** |
-| OpenTofu | 44.12s | 45.84s | **44.84s** |
+| 🔶 OpenTofu | 44.12s | 45.84s | **44.84s** |
 
 ### Destroy Times
 
@@ -32,7 +32,7 @@ Results from 3 iterations on identical Azure resources (January 2026):
 | 🥇 Pulumi | 13.55s | 15.17s | **14.12s** |
 | 🥈 Bicep | 16.82s | 29.54s | **21.39s** |
 | 🥉 Terraform | 60.32s | 61.87s | **60.93s** |
-| OpenTofu | 59.42s | 63.23s | **61.15s** |
+| 🔶 OpenTofu | 59.42s | 63.23s | **61.15s** |
 
 ### 🏆 Winners
 
