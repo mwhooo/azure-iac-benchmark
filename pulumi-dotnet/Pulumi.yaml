@@ -1,6 +1,3 @@
 name: azure-iac-benchmark-dotnet
 runtime: dotnet
 description: Azure IaC Benchmark - Pulumi with .NET/C#
-config:
-  azure-native:location:
-    default: westeurope
