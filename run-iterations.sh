@@ -18,9 +18,9 @@ NC='\033[0m'
 
 # Configuration
 ITERATIONS=${1:-3}
-BICEP_RG="driftguard-benchmark-bicep-rg"
-TERRAFORM_RG="driftguard-benchmark-terraform-rg"
-PULUMI_RG="driftguard-benchmark-pulumi-rg"
+BICEP_RG="azure-iac-benchmark-bicep-rg"
+TERRAFORM_RG="azure-iac-benchmark-terraform-rg"
+PULUMI_RG="azure-iac-benchmark-pulumi-rg"
 
 # Results arrays
 declare -a BICEP_DEPLOY_TIMES

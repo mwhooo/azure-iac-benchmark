@@ -1,0 +1,3 @@
+config:
+  azure-native:location: westeurope
+  iac-benchmark:resource_group_name: azure-iac-benchmark-pulumi-rg

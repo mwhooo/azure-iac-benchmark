@@ -29,7 +29,7 @@ Results from 3 iterations on identical Azure resources (January 2026):
 
 ### 🏆 Winners
 
-- **Fastest Deploy**: Pulumi (25.33s avg) - 44% faster than Terraform, 44% faster than Bicep
+- **Fastest Deploy**: Pulumi (25.33s avg) - 44% faster than Bicep/Terraform
 - **Fastest Destroy**: Pulumi (13.88s avg) - 78% faster than Terraform, 35% faster than Bicep
 - **Most Consistent**: Pulumi (smallest variance across iterations)
 
@@ -50,47 +50,32 @@ Each tool deploys identical infrastructure:
 
 ### Prerequisites
 
-- [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (logged in)
-- [Bicep CLI](https://docs.microsoft.com/en-us/azure/azure-resource-manager/bicep/install)
-- [Terraform](https://www.terraform.io/downloads) (v1.0+)
-- [Pulumi](https://www.pulumi.com/docs/get-started/install/) (v3.0+)
-- Python 3.8+ (for Pulumi)
+| Tool | Installation |
+|------|--------------|
+| Azure CLI | [Install Guide](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) |
+| Bicep CLI | Included with Azure CLI 2.20.0+ |
+| Terraform | [Download](https://www.terraform.io/downloads) (v1.0+) |
+| Pulumi | [Install Guide](https://www.pulumi.com/docs/get-started/install/) (v3.0+) |
+| Python | 3.8+ (for Pulumi) |
 
-### Setup
+### One-Command Setup
 
-1. **Clone the repo**
-   ```bash
-   git clone https://github.com/yourusername/azure-iac-benchmark.git
-   cd azure-iac-benchmark
-   ```
+```bash
+# Clone the repo
+git clone https://github.com/mwhooo/azure-iac-benchmark.git
+cd azure-iac-benchmark
 
-2. **Create resource groups**
-   ```bash
-   az group create -n driftguard-benchmark-bicep-rg -l westeurope
-   az group create -n driftguard-benchmark-terraform-rg -l westeurope
-   az group create -n driftguard-benchmark-pulumi-rg -l westeurope
-   ```
+# Run setup (creates resource groups, initializes all tools)
+./setup.sh
+```
 
-3. **Initialize Terraform**
-   ```bash
-   cd terraform
-   terraform init
-   cd ..
-   ```
-
-4. **Initialize Pulumi**
-   ```bash
-   cd pulumi
-   python -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   export PULUMI_CONFIG_PASSPHRASE=""
-   pulumi stack init benchmark
-   pulumi config set azure-native:location westeurope
-   pulumi config set resource_group_name driftguard-benchmark-pulumi-rg
-   deactivate
-   cd ..
-   ```
+The setup script will:
+1. ✅ Check all prerequisites are installed
+2. ✅ Verify Azure CLI login
+3. ✅ Create 3 resource groups (one per tool)
+4. ✅ Initialize Terraform with providers
+5. ✅ Create Pulumi virtual environment and stack
+6. ✅ Verify Bicep templates compile
 
 ### Run Benchmark
 
@@ -98,7 +83,7 @@ Each tool deploys identical infrastructure:
 # Run 3 iterations (default)
 ./run-iterations.sh
 
-# Run 5 iterations
+# Run 5 iterations for more statistical significance
 ./run-iterations.sh 5
 ```
 
@@ -110,7 +95,8 @@ Results are saved to `results/benchmark_TIMESTAMP.json`.
 azure-iac-benchmark/
 ├── bicep/                    # Bicep templates
 │   ├── main-template.bicep
-│   └── main-template.bicepparam
+│   ├── main-template.bicepparam
+│   └── bicep-modules/        # Reusable modules
 ├── terraform/                # Terraform configuration
 │   ├── main.tf
 │   ├── variables.tf
@@ -120,9 +106,29 @@ azure-iac-benchmark/
 │   ├── __main__.py
 │   ├── Pulumi.yaml
 │   └── requirements.txt
-├── results/                  # Benchmark results
-├── run-iterations.sh         # Benchmark runner script
-└── README.md
+├── results/                  # Benchmark results (gitignored)
+├── setup.sh                  # One-command setup
+├── run-iterations.sh         # Multi-iteration benchmark
+└── run-benchmark.sh          # Single benchmark with options
+```
+
+## ⚙️ Configuration
+
+### Custom Location
+
+```bash
+# Set location before running setup
+export LOCATION=eastus
+./setup.sh
+```
+
+### Custom Resource Groups
+
+```bash
+export BICEP_RG=my-bicep-rg
+export TERRAFORM_RG=my-terraform-rg
+export PULUMI_RG=my-pulumi-rg
+./setup.sh
 ```
 
 ## 🔍 Why These Results?
@@ -146,13 +152,24 @@ azure-iac-benchmark/
 - Higher variance due to ARM deployment engine
 - No native destroy command (requires manual resource deletion)
 
-## ⚙️ Methodology
+## 📈 Methodology
 
-- All tools deploy to separate resource groups in the same region (West Europe)
+- All tools deploy to **separate resource groups** in the same region
 - Timing measured with `date +%s.%N` (nanosecond precision)
-- Each iteration: full deploy → verify resources → full destroy
+- Each iteration: **full deploy → verify → full destroy**
 - Output suppressed to eliminate I/O timing differences
 - Same Azure subscription and network conditions
+- Resources verified identical across all three tools
+
+## 🧹 Cleanup
+
+Remove all benchmark resources:
+
+```bash
+az group delete -n azure-iac-benchmark-bicep-rg --yes --no-wait
+az group delete -n azure-iac-benchmark-terraform-rg --yes --no-wait
+az group delete -n azure-iac-benchmark-pulumi-rg --yes --no-wait
+```
 
 ## 🤝 Contributing
 
@@ -163,6 +180,7 @@ Contributions welcome! Ideas for improvement:
 - [ ] GitHub Actions workflow for automated benchmarks
 - [ ] More complex infrastructure scenarios
 - [ ] Cost comparison alongside speed
+- [ ] Memory/CPU usage during deployments
 
 ## 📄 License
 
