@@ -776,10 +776,12 @@ cat > "$HTML_FILE" << 'HTMLEOF'
         new Chart(document.getElementById('deployChart').getContext('2d'), {
             type: 'bar',
             data: {
+                labels: ['Bicep', 'Terraform', 'OpenTofu', 'Pulumi'],
                 datasets: [{
                     label: 'Avg Deploy Time (s)',
-                    backgroundColor: ['rgba(0,120,212,0.8)', 'rgba(123,66,188,0.8)', 'rgba(255,218,24,0.8)', 'rgba(247,191,42,0.8)', 'rgba(81,43,212,0.8)'],
-                    borderColor: ['rgba(0,120,212,1)', 'rgba(123,66,188,1)', 'rgba(255,218,24,1)', 'rgba(247,191,42,1)', 'rgba(81,43,212,1)'],
+                    data: [BICEP_DEPLOY_AVG, TF_DEPLOY_AVG, OT_DEPLOY_AVG, PULUMI_DEPLOY_AVG],
+                    backgroundColor: ['rgba(0,120,212,0.8)', 'rgba(123,66,188,0.8)', 'rgba(255,218,24,0.8)', 'rgba(247,191,42,0.8)'],
+                    borderColor: ['rgba(0,120,212,1)', 'rgba(123,66,188,1)', 'rgba(255,218,24,1)', 'rgba(247,191,42,1)'],
                     borderWidth: 2,
                     borderRadius: 8
                 }]
@@ -799,10 +801,12 @@ cat > "$HTML_FILE" << 'HTMLEOF'
         new Chart(document.getElementById('destroyChart').getContext('2d'), {
             type: 'bar',
             data: {
+                labels: ['Bicep', 'Terraform', 'OpenTofu', 'Pulumi'],
                 datasets: [{
                     label: 'Avg Destroy Time (s)',
-                    backgroundColor: ['rgba(0,120,212,0.8)', 'rgba(123,66,188,0.8)', 'rgba(255,218,24,0.8)', 'rgba(247,191,42,0.8)', 'rgba(81,43,212,0.8)'],
-                    borderColor: ['rgba(0,120,212,1)', 'rgba(123,66,188,1)', 'rgba(255,218,24,1)', 'rgba(247,191,42,1)', 'rgba(81,43,212,1)'],
+                    data: [BICEP_DESTROY_AVG, TF_DESTROY_AVG, OT_DESTROY_AVG, PULUMI_DESTROY_AVG],
+                    backgroundColor: ['rgba(0,120,212,0.8)', 'rgba(123,66,188,0.8)', 'rgba(255,218,24,0.8)', 'rgba(247,191,42,0.8)'],
+                    borderColor: ['rgba(0,120,212,1)', 'rgba(123,66,188,1)', 'rgba(255,218,24,1)', 'rgba(247,191,42,1)'],
                     borderWidth: 2,
                     borderRadius: 8
                 }]
