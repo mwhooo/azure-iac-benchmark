@@ -147,6 +147,7 @@ benchmark_pulumi() {
     local iteration=$1
     echo -e "\n${BLUE}[Pulumi] Iteration $iteration - Deploying...${NC}"
     
+    cd "$SCRIPT_DIR/pulumi-dotnet"
     export PULUMI_CONFIG_PASSPHRASE=""
     
     # Ensure we're logged in and on the right stack
