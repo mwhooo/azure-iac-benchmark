@@ -119,6 +119,11 @@ jobs:
       - name: Run Benchmark
         env:
           PULUMI_CONFIG_PASSPHRASE: ""
+          # Azure Native provider authentication for Pulumi
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: "true"
         run: |
           chmod +x run-iterations.sh
           ./run-iterations.sh ${{ inputs.iterations }} ${{ inputs.tools }}
