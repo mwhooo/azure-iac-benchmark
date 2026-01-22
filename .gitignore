@@ -5,6 +5,13 @@ terraform/*.tfstate.backup
 terraform/.terraform.lock.hcl
 terraform/terraform.tfvars
 
+# OpenTofu
+opentofu/.terraform/
+opentofu/*.tfstate
+opentofu/*.tfstate.backup
+opentofu/.terraform.lock.hcl
+opentofu/terraform.tfvars
+
 # Pulumi
 pulumi/venv/
 pulumi/.pulumi/

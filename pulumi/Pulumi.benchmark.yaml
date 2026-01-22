@@ -1,3 +1,5 @@
 config:
   azure-native:location: westeurope
-  iac-benchmark:resource_group_name: azure-iac-benchmark-pulumi-rg
+  iac-benchmark:resourceGroupName: azure-iac-benchmark-pulumi-rg
+  iac-benchmark:location: westeurope
+encryptionsalt: v1:8Rq3NMbyBVE=:v1:K5KkjLKZLWKYnwvX:SyO3V+bOveQcig4EaF9Kr/vgNDxAuQ==

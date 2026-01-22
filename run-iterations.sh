@@ -20,6 +20,7 @@ NC='\033[0m'
 ITERATIONS=${1:-3}
 BICEP_RG="azure-iac-benchmark-bicep-rg"
 TERRAFORM_RG="azure-iac-benchmark-terraform-rg"
+OPENTOFU_RG="azure-iac-benchmark-opentofu-rg"
 PULUMI_RG="azure-iac-benchmark-pulumi-rg"
 
 # Results arrays
@@ -27,6 +28,8 @@ declare -a BICEP_DEPLOY_TIMES
 declare -a BICEP_DESTROY_TIMES
 declare -a TERRAFORM_DEPLOY_TIMES
 declare -a TERRAFORM_DESTROY_TIMES
+declare -a OPENTOFU_DEPLOY_TIMES
+declare -a OPENTOFU_DESTROY_TIMES
 declare -a PULUMI_DEPLOY_TIMES
 declare -a PULUMI_DESTROY_TIMES
 
@@ -93,6 +96,31 @@ benchmark_terraform() {
     cd "$SCRIPT_DIR"
 }
 
+# Benchmark OpenTofu
+benchmark_opentofu() {
+    local iteration=$1
+    echo -e "\n${BLUE}[OpenTofu] Iteration $iteration - Deploying...${NC}"
+    
+    cd "$SCRIPT_DIR/opentofu"
+    
+    local start=$(date +%s.%N)
+    tofu apply -auto-approve -var="resource_group_name=$OPENTOFU_RG" > /dev/null 2>&1
+    local end=$(date +%s.%N)
+    local deploy_time=$(echo "$end - $start" | bc)
+    OPENTOFU_DEPLOY_TIMES+=("$deploy_time")
+    echo -e "${GREEN}  ✓ Deploy: ${deploy_time}s${NC}"
+    
+    echo -e "${BLUE}[OpenTofu] Iteration $iteration - Destroying...${NC}"
+    start=$(date +%s.%N)
+    tofu destroy -auto-approve -var="resource_group_name=$OPENTOFU_RG" > /dev/null 2>&1
+    end=$(date +%s.%N)
+    local destroy_time=$(echo "$end - $start" | bc)
+    OPENTOFU_DESTROY_TIMES+=("$destroy_time")
+    echo -e "${GREEN}  ✓ Destroy: ${destroy_time}s${NC}"
+    
+    cd "$SCRIPT_DIR"
+}
+
 # Benchmark Pulumi
 benchmark_pulumi() {
     local iteration=$1
@@ -147,6 +175,7 @@ for ((i=1; i<=ITERATIONS; i++)); do
     
     benchmark_bicep "$i"
     benchmark_terraform "$i"
+    benchmark_opentofu "$i"
     benchmark_pulumi "$i"
 done
 
@@ -155,6 +184,8 @@ read bicep_deploy_min bicep_deploy_max bicep_deploy_avg <<< $(calc_stats BICEP_D
 read bicep_destroy_min bicep_destroy_max bicep_destroy_avg <<< $(calc_stats BICEP_DESTROY_TIMES)
 read tf_deploy_min tf_deploy_max tf_deploy_avg <<< $(calc_stats TERRAFORM_DEPLOY_TIMES)
 read tf_destroy_min tf_destroy_max tf_destroy_avg <<< $(calc_stats TERRAFORM_DESTROY_TIMES)
+read ot_deploy_min ot_deploy_max ot_deploy_avg <<< $(calc_stats OPENTOFU_DEPLOY_TIMES)
+read ot_destroy_min ot_destroy_max ot_destroy_avg <<< $(calc_stats OPENTOFU_DESTROY_TIMES)
 read pulumi_deploy_min pulumi_deploy_max pulumi_deploy_avg <<< $(calc_stats PULUMI_DEPLOY_TIMES)
 read pulumi_destroy_min pulumi_destroy_max pulumi_destroy_avg <<< $(calc_stats PULUMI_DESTROY_TIMES)
 
@@ -168,6 +199,7 @@ printf "%-12s %10s %10s %10s\n" "Tool" "Min" "Max" "Avg"
 printf "%-12s %10s %10s %10s\n" "--------" "------" "------" "------"
 printf "%-12s %10.2f %10.2f %10.2f\n" "Bicep" "$bicep_deploy_min" "$bicep_deploy_max" "$bicep_deploy_avg"
 printf "%-12s %10.2f %10.2f %10.2f\n" "Terraform" "$tf_deploy_min" "$tf_deploy_max" "$tf_deploy_avg"
+printf "%-12s %10.2f %10.2f %10.2f\n" "OpenTofu" "$ot_deploy_min" "$ot_deploy_max" "$ot_deploy_avg"
 printf "%-12s %10.2f %10.2f %10.2f\n" "Pulumi" "$pulumi_deploy_min" "$pulumi_deploy_max" "$pulumi_deploy_avg"
 
 echo -e "\n${GREEN}DESTROY TIMES (seconds):${NC}"
@@ -175,17 +207,20 @@ printf "%-12s %10s %10s %10s\n" "Tool" "Min" "Max" "Avg"
 printf "%-12s %10s %10s %10s\n" "--------" "------" "------" "------"
 printf "%-12s %10.2f %10.2f %10.2f\n" "Bicep" "$bicep_destroy_min" "$bicep_destroy_max" "$bicep_destroy_avg"
 printf "%-12s %10.2f %10.2f %10.2f\n" "Terraform" "$tf_destroy_min" "$tf_destroy_max" "$tf_destroy_avg"
+printf "%-12s %10.2f %10.2f %10.2f\n" "OpenTofu" "$ot_destroy_min" "$ot_destroy_max" "$ot_destroy_avg"
 printf "%-12s %10.2f %10.2f %10.2f\n" "Pulumi" "$pulumi_destroy_min" "$pulumi_destroy_max" "$pulumi_destroy_avg"
 
 # Determine winners
 deploy_winner="Bicep"
 deploy_best=$bicep_deploy_avg
 if (( $(echo "$tf_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="Terraform"; deploy_best=$tf_deploy_avg; fi
+if (( $(echo "$ot_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="OpenTofu"; deploy_best=$ot_deploy_avg; fi
 if (( $(echo "$pulumi_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="Pulumi"; deploy_best=$pulumi_deploy_avg; fi
 
 destroy_winner="Bicep"
 destroy_best=$bicep_destroy_avg
 if (( $(echo "$tf_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="Terraform"; destroy_best=$tf_destroy_avg; fi
+if (( $(echo "$ot_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="OpenTofu"; destroy_best=$ot_destroy_avg; fi
 if (( $(echo "$pulumi_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="Pulumi"; destroy_best=$pulumi_destroy_avg; fi
 
 echo -e "\n${YELLOW}🏆 WINNERS:${NC}"
@@ -206,6 +241,10 @@ cat > "$RESULTS_DIR/benchmark_${TIMESTAMP}.json" << EOF
       "deploy": { "times": [$(IFS=,; echo "${TERRAFORM_DEPLOY_TIMES[*]}")], "min": $tf_deploy_min, "max": $tf_deploy_max, "avg": $tf_deploy_avg },
       "destroy": { "times": [$(IFS=,; echo "${TERRAFORM_DESTROY_TIMES[*]}")], "min": $tf_destroy_min, "max": $tf_destroy_max, "avg": $tf_destroy_avg }
     },
+    "opentofu": {
+      "deploy": { "times": [$(IFS=,; echo "${OPENTOFU_DEPLOY_TIMES[*]}")], "min": $ot_deploy_min, "max": $ot_deploy_max, "avg": $ot_deploy_avg },
+      "destroy": { "times": [$(IFS=,; echo "${OPENTOFU_DESTROY_TIMES[*]}")], "min": $ot_destroy_min, "max": $ot_destroy_max, "avg": $ot_destroy_avg }
+    },
     "pulumi": {
       "deploy": { "times": [$(IFS=,; echo "${PULUMI_DEPLOY_TIMES[*]}")], "min": $pulumi_deploy_min, "max": $pulumi_deploy_max, "avg": $pulumi_deploy_avg },
       "destroy": { "times": [$(IFS=,; echo "${PULUMI_DESTROY_TIMES[*]}")], "min": $pulumi_destroy_min, "max": $pulumi_destroy_max, "avg": $pulumi_destroy_avg }
@@ -219,3 +258,701 @@ cat > "$RESULTS_DIR/benchmark_${TIMESTAMP}.json" << EOF
 EOF
 
 echo -e "\n${GREEN}Results saved to: $RESULTS_DIR/benchmark_${TIMESTAMP}.json${NC}"
+
+# Generate HTML report
+HTML_FILE="$RESULTS_DIR/benchmark_${TIMESTAMP}.html"
+
+# Calculate speed comparisons
+bicep_total=$(echo "$bicep_deploy_avg + $bicep_destroy_avg" | bc)
+tf_total=$(echo "$tf_deploy_avg + $tf_destroy_avg" | bc)
+pulumi_total=$(echo "$pulumi_deploy_avg + $pulumi_destroy_avg" | bc)
+
+# Calculate percentages vs winner
+if [ "$deploy_winner" = "Pulumi" ]; then
+    pulumi_vs_bicep_deploy=$(echo "scale=0; (1 - $pulumi_deploy_avg / $bicep_deploy_avg) * 100" | bc)
+    pulumi_vs_tf_deploy=$(echo "scale=0; (1 - $pulumi_deploy_avg / $tf_deploy_avg) * 100" | bc)
+elif [ "$deploy_winner" = "Bicep" ]; then
+    pulumi_vs_bicep_deploy="-"
+    pulumi_vs_tf_deploy=$(echo "scale=0; (1 - $bicep_deploy_avg / $tf_deploy_avg) * 100" | bc)
+else
+    pulumi_vs_bicep_deploy=$(echo "scale=0; (1 - $tf_deploy_avg / $bicep_deploy_avg) * 100" | bc)
+    pulumi_vs_tf_deploy="-"
+fi
+
+if [ "$destroy_winner" = "Pulumi" ]; then
+    pulumi_vs_bicep_destroy=$(echo "scale=0; (1 - $pulumi_destroy_avg / $bicep_destroy_avg) * 100" | bc)
+    pulumi_vs_tf_destroy=$(echo "scale=0; (1 - $pulumi_destroy_avg / $tf_destroy_avg) * 100" | bc)
+elif [ "$destroy_winner" = "Bicep" ]; then
+    pulumi_vs_bicep_destroy="-"
+    pulumi_vs_tf_destroy=$(echo "scale=0; (1 - $bicep_destroy_avg / $tf_destroy_avg) * 100" | bc)
+else
+    pulumi_vs_bicep_destroy=$(echo "scale=0; (1 - $tf_destroy_avg / $bicep_destroy_avg) * 100" | bc)
+    pulumi_vs_tf_destroy="-"
+fi
+
+cat > "$HTML_FILE" << 'HTMLEOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IaC Benchmark Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bicep-color: #0078d4;
+            --terraform-color: #7b42bc;
+            --opentofu-color: #ffda18;
+            --pulumi-color: #f7bf2a;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+            --border-color: #e0e0e0;
+            --success-color: #28a745;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+        
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 2.5rem;
+            background: linear-gradient(135deg, var(--bicep-color) 0%, var(--terraform-color) 50%, var(--pulumi-color) 100%);
+            border-radius: 16px;
+            color: white;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        }
+        
+        header h1 { font-size: 2.8rem; margin-bottom: 0.5rem; }
+        header p { font-size: 1.2rem; opacity: 0.95; }
+        .timestamp { margin-top: 1rem; font-size: 0.9rem; opacity: 0.8; }
+        
+        .winner-banner {
+            background: linear-gradient(135deg, #ffd700, #ffed4a, #ffd700);
+            color: #333;
+            padding: 1.5rem 2rem;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(255, 215, 0, 0.3);
+        }
+        
+        .winner-banner h3 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+        .winner-banner p { font-size: 1.1rem; }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        }
+        
+        .card h2 {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 3px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .card.bicep h2 { border-color: var(--bicep-color); }
+        .card.terraform h2 { border-color: var(--terraform-color); }
+        .card.opentofu h2 { border-color: var(--opentofu-color); }
+        .card.pulumi h2 { border-color: var(--pulumi-color); }
+        
+        .tool-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .card.bicep .tool-icon { background: var(--bicep-color); }
+        .card.terraform .tool-icon { background: var(--terraform-color); }
+        .card.opentofu .tool-icon { background: var(--opentofu-color); }
+        .card.pulumi .tool-icon { background: var(--pulumi-color); }
+        
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .metric:last-child { border-bottom: none; }
+        .metric-label { color: #666; font-size: 0.95rem; }
+        .metric-value { font-weight: 600; font-size: 1.05rem; }
+        .metric-value.time { font-size: 1.6rem; font-weight: 700; }
+        
+        .card.bicep .metric-value.time { color: var(--bicep-color); }
+        .card.terraform .metric-value.time { color: var(--terraform-color); }
+        .card.opentofu .metric-value.time { color: var(--opentofu-color); }
+        .card.pulumi .metric-value.time { color: var(--pulumi-color); }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-left: 0.5rem;
+        }
+        
+        .badge.winner { background: linear-gradient(135deg, #ffd700, #ffed4a); color: #333; }
+        .badge.success { background: #d4edda; color: #155724; }
+        
+        .chart-container {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            margin-bottom: 2rem;
+        }
+        
+        .chart-container h2 { margin-bottom: 1.5rem; font-size: 1.4rem; }
+        
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+        
+        .chart-wrapper { position: relative; height: 350px; }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        th {
+            background-color: var(--bg-color);
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
+            color: #666;
+        }
+        
+        @media (max-width: 1024px) {
+            .grid { grid-template-columns: 1fr; }
+            .chart-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏎️ IaC Benchmark Report</h1>
+            <p>Bicep vs Terraform vs OpenTofu vs Pulumi - ITERATIONS_PLACEHOLDER Iterations Each</p>
+            <div class="timestamp">Generated: DATETIME_PLACEHOLDER | Region: West Europe</div>
+        </header>
+        
+        <div class="winner-banner">
+            <h3>🏆 Overall Winner: DEPLOY_WINNER_PLACEHOLDER</h3>
+            <p>Fastest Deploy (DEPLOY_BEST_PLACEHOLDERs avg) — WINNER_DESC_PLACEHOLDER</p>
+        </div>
+        
+        <div class="grid">
+            <div class="card bicep">
+                <h2><span class="tool-icon">B</span> BicepBICEP_BADGE_PLACEHOLDER</h2>
+                <div class="metric">
+                    <span class="metric-label">Avg Deploy Time</span>
+                    <span class="metric-value time">BICEP_DEPLOY_AVGsBICEP_DEPLOY_FASTEST</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Avg Destroy Time</span>
+                    <span class="metric-value time">BICEP_DESTROY_AVGsBICEP_DESTROY_FASTEST</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Deploy Range</span>
+                    <span class="metric-value">BICEP_DEPLOY_MINs - BICEP_DEPLOY_MAXs</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Destroy Range</span>
+                    <span class="metric-value">BICEP_DESTROY_MINs - BICEP_DESTROY_MAXs</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Status</span>
+                    <span class="badge success">✓ ITERATIONS_PLACEHOLDER/ITERATIONS_PLACEHOLDER Success</span>
+                </div>
+            </div>
+            
+            <div class="card terraform">
+                <h2><span class="tool-icon">T</span> TerraformTERRAFORM_BADGE_PLACEHOLDER</h2>
+                <div class="metric">
+                    <span class="metric-label">Avg Deploy Time</span>
+                    <span class="metric-value time">TF_DEPLOY_AVGsTF_DEPLOY_FASTEST</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Avg Destroy Time</span>
+                    <span class="metric-value time">TF_DESTROY_AVGsTF_DESTROY_FASTEST</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Deploy Range</span>
+                    <span class="metric-value">TF_DEPLOY_MINs - TF_DEPLOY_MAXs</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Destroy Range</span>
+                    <span class="metric-value">TF_DESTROY_MINs - TF_DESTROY_MAXs</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Status</span>
+                    <span class="badge success">✓ ITERATIONS_PLACEHOLDER/ITERATIONS_PLACEHOLDER Success</span>
+                </div>
+            </div>
+            
+            <div class="card opentofu">
+                <h2><span class="tool-icon">O</span> OpenTofuOPENTOFU_BADGE_PLACEHOLDER</h2>
+                <div class="metric">
+                    <span class="metric-label">Avg Deploy Time</span>
+                    <span class="metric-value time">OT_DEPLOY_AVGsOT_DEPLOY_FASTEST</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Avg Destroy Time</span>
+                    <span class="metric-value time">OT_DESTROY_AVGsOT_DESTROY_FASTEST</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Deploy Range</span>
+                    <span class="metric-value">OT_DEPLOY_MINs - OT_DEPLOY_MAXs</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Destroy Range</span>
+                    <span class="metric-value">OT_DESTROY_MINs - OT_DESTROY_MAXs</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Status</span>
+                    <span class="badge success">✓ ITERATIONS_PLACEHOLDER/ITERATIONS_PLACEHOLDER Success</span>
+                </div>
+            </div>
+            
+            <div class="card pulumi">
+                <h2><span class="tool-icon">P</span> PulumiPULUMI_BADGE_PLACEHOLDER</h2>
+                <div class="metric">
+                    <span class="metric-label">Avg Deploy Time</span>
+                    <span class="metric-value time">PULUMI_DEPLOY_AVGsPULUMI_DEPLOY_FASTEST</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Avg Destroy Time</span>
+                    <span class="metric-value time">PULUMI_DESTROY_AVGsPULUMI_DESTROY_FASTEST</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Deploy Range</span>
+                    <span class="metric-value">PULUMI_DEPLOY_MINs - PULUMI_DEPLOY_MAXs</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Destroy Range</span>
+                    <span class="metric-value">PULUMI_DESTROY_MINs - PULUMI_DESTROY_MAXs</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Status</span>
+                    <span class="badge success">✓ ITERATIONS_PLACEHOLDER/ITERATIONS_PLACEHOLDER Success</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <h2>📊 Performance Comparison</h2>
+            <div class="chart-grid">
+                <div class="chart-wrapper">
+                    <canvas id="deployChart"></canvas>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="destroyChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <h2>📈 Per-Iteration Results</h2>
+            <div class="chart-wrapper" style="height: 400px;">
+                <canvas id="iterationChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <h2>⚖️ Speed Comparison Summary</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Winner</th>
+                        <th>vs Bicep</th>
+                        <th>vs Terraform</th>
+                        <th>vs OpenTofu</th>
+                        <th>vs Pulumi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Deploy Speed</strong></td>
+                        <td style="color: DEPLOY_WINNER_COLOR; font-weight: bold;">🏆 DEPLOY_WINNER_PLACEHOLDER</td>
+                        <td>VS_BICEP_DEPLOY</td>
+                        <td>VS_TF_DEPLOY</td>
+                        <td>VS_OT_DEPLOY</td>
+                        <td>VS_PULUMI_DEPLOY</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Destroy Speed</strong></td>
+                        <td style="color: DESTROY_WINNER_COLOR; font-weight: bold;">🏆 DESTROY_WINNER_PLACEHOLDER</td>
+                        <td>VS_BICEP_DESTROY</td>
+                        <td>VS_TF_DESTROY</td>
+                        <td>VS_OT_DESTROY</td>
+                        <td>VS_PULUMI_DESTROY</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <footer>
+            <p><strong>Azure IaC Benchmark Tool</strong></p>
+            <p>Run: DATETIME_PLACEHOLDER | ITERATIONS_PLACEHOLDER Iterations | West Europe</p>
+        </footer>
+    </div>
+    
+    <script>
+        // Deploy Time Chart
+        new Chart(document.getElementById('deployChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Bicep', 'Terraform', 'OpenTofu', 'Pulumi'],
+                datasets: [{
+                    label: 'Avg Deploy Time (s)',
+                    data: [BICEP_DEPLOY_AVG, TF_DEPLOY_AVG, OT_DEPLOY_AVG, PULUMI_DEPLOY_AVG],
+                    backgroundColor: ['rgba(0,120,212,0.8)', 'rgba(123,66,188,0.8)', 'rgba(255,218,24,0.8)', 'rgba(247,191,42,0.8)'],
+                    borderColor: ['rgba(0,120,212,1)', 'rgba(123,66,188,1)', 'rgba(255,218,24,1)', 'rgba(247,191,42,1)'],
+                    borderWidth: 2,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: { display: true, text: 'Average Deploy Time (seconds)', font: { size: 16, weight: 'bold' } },
+                    legend: { display: false }
+                },
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Seconds' } } }
+            }
+        });
+        
+        // Destroy Time Chart
+        new Chart(document.getElementById('destroyChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Bicep', 'Terraform', 'OpenTofu', 'Pulumi'],
+                datasets: [{
+                    label: 'Avg Destroy Time (s)',
+                    data: [BICEP_DESTROY_AVG, TF_DESTROY_AVG, OT_DESTROY_AVG, PULUMI_DESTROY_AVG],
+                    backgroundColor: ['rgba(0,120,212,0.8)', 'rgba(123,66,188,0.8)', 'rgba(255,218,24,0.8)', 'rgba(247,191,42,0.8)'],
+                    borderColor: ['rgba(0,120,212,1)', 'rgba(123,66,188,1)', 'rgba(255,218,24,1)', 'rgba(247,191,42,1)'],
+                    borderWidth: 2,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: { display: true, text: 'Average Destroy Time (seconds)', font: { size: 16, weight: 'bold' } },
+                    legend: { display: false }
+                },
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Seconds' } } }
+            }
+        });
+        
+        // Iteration Chart
+        new Chart(document.getElementById('iterationChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: [ITERATION_LABELS],
+                datasets: [
+                    {
+                        label: 'Bicep Deploy',
+                        data: [BICEP_DEPLOY_TIMES],
+                        borderColor: 'rgba(0,120,212,1)',
+                        backgroundColor: 'rgba(0,120,212,0.1)',
+                        tension: 0.3,
+                        fill: false
+                    },
+                    {
+                        label: 'Terraform Deploy',
+                        data: [TF_DEPLOY_TIMES],
+                        borderColor: 'rgba(123,66,188,1)',
+                        backgroundColor: 'rgba(123,66,188,0.1)',
+                        tension: 0.3,
+                        fill: false
+                    },
+                    {
+                        label: 'OpenTofu Deploy',
+                        data: [OT_DEPLOY_TIMES],
+                        borderColor: 'rgba(255,218,24,1)',
+                        backgroundColor: 'rgba(255,218,24,0.1)',
+                        tension: 0.3,
+                        fill: false
+                    },
+                    {
+                        label: 'Pulumi Deploy',
+                        data: [PULUMI_DEPLOY_TIMES],
+                        borderColor: 'rgba(247,191,42,1)',
+                        backgroundColor: 'rgba(247,191,42,0.1)',
+                        tension: 0.3,
+                        fill: false,
+                        borderWidth: 3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: { display: true, text: 'Deploy Time per Iteration', font: { size: 16, weight: 'bold' } },
+                    legend: { position: 'bottom' }
+                },
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Seconds' } } }
+            }
+        });
+    </script>
+</body>
+</html>
+HTMLEOF
+
+# Replace placeholders with actual values
+sed -i "s/ITERATIONS_PLACEHOLDER/$ITERATIONS/g" "$HTML_FILE"
+sed -i "s/DATETIME_PLACEHOLDER/$(date '+%B %d, %Y %H:%M')/g" "$HTML_FILE"
+sed -i "s/DEPLOY_WINNER_PLACEHOLDER/$deploy_winner/g" "$HTML_FILE"
+sed -i "s/DESTROY_WINNER_PLACEHOLDER/$destroy_winner/g" "$HTML_FILE"
+sed -i "s/DEPLOY_BEST_PLACEHOLDER/$deploy_best/g" "$HTML_FILE"
+
+# Winner description
+if [ "$deploy_winner" = "$destroy_winner" ]; then
+    sed -i "s/WINNER_DESC_PLACEHOLDER/Fastest Destroy (${destroy_best}s avg) - dominating both metrics!/g" "$HTML_FILE"
+else
+    sed -i "s/WINNER_DESC_PLACEHOLDER/Destroy winner: $destroy_winner (${destroy_best}s avg)/g" "$HTML_FILE"
+fi
+
+# Winner colors
+case "$deploy_winner" in
+    Bicep) sed -i "s/DEPLOY_WINNER_COLOR/var(--bicep-color)/g" "$HTML_FILE" ;;
+    Terraform) sed -i "s/DEPLOY_WINNER_COLOR/var(--terraform-color)/g" "$HTML_FILE" ;;
+    OpenTofu) sed -i "s/DEPLOY_WINNER_COLOR/var(--opentofu-color)/g" "$HTML_FILE" ;;
+    Pulumi) sed -i "s/DEPLOY_WINNER_COLOR/var(--pulumi-color)/g" "$HTML_FILE" ;;
+esac
+
+case "$destroy_winner" in
+    Bicep) sed -i "s/DESTROY_WINNER_COLOR/var(--bicep-color)/g" "$HTML_FILE" ;;
+    Terraform) sed -i "s/DESTROY_WINNER_COLOR/var(--terraform-color)/g" "$HTML_FILE" ;;
+    OpenTofu) sed -i "s/DESTROY_WINNER_COLOR/var(--opentofu-color)/g" "$HTML_FILE" ;;
+    Pulumi) sed -i "s/DESTROY_WINNER_COLOR/var(--pulumi-color)/g" "$HTML_FILE" ;;
+esac
+
+# Winner badges
+if [ "$deploy_winner" = "Bicep" ] && [ "$destroy_winner" = "Bicep" ]; then
+    sed -i 's/BICEP_BADGE_PLACEHOLDER/ <span class="badge winner">🏆 Winner<\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/BICEP_BADGE_PLACEHOLDER//g' "$HTML_FILE"
+fi
+
+if [ "$deploy_winner" = "Terraform" ] && [ "$destroy_winner" = "Terraform" ]; then
+    sed -i 's/TERRAFORM_BADGE_PLACEHOLDER/ <span class="badge winner">🏆 Winner<\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/TERRAFORM_BADGE_PLACEHOLDER//g' "$HTML_FILE"
+fi
+
+if [ "$deploy_winner" = "OpenTofu" ] && [ "$destroy_winner" = "OpenTofu" ]; then
+    sed -i 's/OPENTOFU_BADGE_PLACEHOLDER/ <span class="badge winner">🏆 Winner<\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/OPENTOFU_BADGE_PLACEHOLDER//g' "$HTML_FILE"
+fi
+
+if [ "$deploy_winner" = "Pulumi" ] && [ "$destroy_winner" = "Pulumi" ]; then
+    sed -i 's/PULUMI_BADGE_PLACEHOLDER/ <span class="badge winner">🏆 Winner<\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/PULUMI_BADGE_PLACEHOLDER//g' "$HTML_FILE"
+fi
+
+# Fastest badges
+if [ "$deploy_winner" = "Bicep" ]; then
+    sed -i 's/BICEP_DEPLOY_FASTEST/ <span class="badge winner">Fastest<\\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/BICEP_DEPLOY_FASTEST//g' "$HTML_FILE"
+fi
+
+if [ "$destroy_winner" = "Bicep" ]; then
+    sed -i 's/BICEP_DESTROY_FASTEST/ <span class="badge winner">Fastest<\\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/BICEP_DESTROY_FASTEST//g' "$HTML_FILE"
+fi
+
+if [ "$deploy_winner" = "Terraform" ]; then
+    sed -i 's/TF_DEPLOY_FASTEST/ <span class="badge winner">Fastest<\\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/TF_DEPLOY_FASTEST//g' "$HTML_FILE"
+fi
+
+if [ "$destroy_winner" = "Terraform" ]; then
+    sed -i 's/TF_DESTROY_FASTEST/ <span class="badge winner">Fastest<\\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/TF_DESTROY_FASTEST//g' "$HTML_FILE"
+fi
+
+if [ "$deploy_winner" = "OpenTofu" ]; then
+    sed -i 's/OT_DEPLOY_FASTEST/ <span class="badge winner">Fastest<\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/OT_DEPLOY_FASTEST//g' "$HTML_FILE"
+fi
+
+if [ "$destroy_winner" = "OpenTofu" ]; then
+    sed -i 's/OT_DESTROY_FASTEST/ <span class="badge winner">Fastest<\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/OT_DESTROY_FASTEST//g' "$HTML_FILE"
+fi
+
+if [ "$deploy_winner" = "Pulumi" ]; then
+    sed -i 's/PULUMI_DEPLOY_FASTEST/ <span class="badge winner">Fastest<\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/PULUMI_DEPLOY_FASTEST//g' "$HTML_FILE"
+fi
+
+if [ "$destroy_winner" = "Pulumi" ]; then
+    sed -i 's/PULUMI_DESTROY_FASTEST/ <span class="badge winner">Fastest<\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/PULUMI_DESTROY_FASTEST//g' "$HTML_FILE"
+fi
+
+# Metric values
+sed -i "s/BICEP_DEPLOY_AVG/$bicep_deploy_avg/g" "$HTML_FILE"
+sed -i "s/BICEP_DESTROY_AVG/$bicep_destroy_avg/g" "$HTML_FILE"
+sed -i "s/BICEP_DEPLOY_MIN/$bicep_deploy_min/g" "$HTML_FILE"
+sed -i "s/BICEP_DEPLOY_MAX/$bicep_deploy_max/g" "$HTML_FILE"
+sed -i "s/BICEP_DESTROY_MIN/$bicep_destroy_min/g" "$HTML_FILE"
+sed -i "s/BICEP_DESTROY_MAX/$bicep_destroy_max/g" "$HTML_FILE"
+
+sed -i "s/TF_DEPLOY_AVG/$tf_deploy_avg/g" "$HTML_FILE"
+sed -i "s/TF_DESTROY_AVG/$tf_destroy_avg/g" "$HTML_FILE"
+sed -i "s/TF_DEPLOY_MIN/$tf_deploy_min/g" "$HTML_FILE"
+sed -i "s/TF_DEPLOY_MAX/$tf_deploy_max/g" "$HTML_FILE"
+sed -i "s/TF_DESTROY_MIN/$tf_destroy_min/g" "$HTML_FILE"
+sed -i "s/TF_DESTROY_MAX/$tf_destroy_max/g" "$HTML_FILE"
+
+sed -i "s/OT_DEPLOY_AVG/$ot_deploy_avg/g" "$HTML_FILE"
+sed -i "s/OT_DESTROY_AVG/$ot_destroy_avg/g" "$HTML_FILE"
+sed -i "s/OT_DEPLOY_MIN/$ot_deploy_min/g" "$HTML_FILE"
+sed -i "s/OT_DEPLOY_MAX/$ot_deploy_max/g" "$HTML_FILE"
+sed -i "s/OT_DESTROY_MIN/$ot_destroy_min/g" "$HTML_FILE"
+sed -i "s/OT_DESTROY_MAX/$ot_destroy_max/g" "$HTML_FILE"
+
+sed -i "s/PULUMI_DEPLOY_AVG/$pulumi_deploy_avg/g" "$HTML_FILE"
+sed -i "s/PULUMI_DESTROY_AVG/$pulumi_destroy_avg/g" "$HTML_FILE"
+sed -i "s/PULUMI_DEPLOY_MIN/$pulumi_deploy_min/g" "$HTML_FILE"
+sed -i "s/PULUMI_DEPLOY_MAX/$pulumi_deploy_max/g" "$HTML_FILE"
+sed -i "s/PULUMI_DESTROY_MIN/$pulumi_destroy_min/g" "$HTML_FILE"
+sed -i "s/PULUMI_DESTROY_MAX/$pulumi_destroy_max/g" "$HTML_FILE"
+
+# Iteration data
+iteration_labels=""
+for i in $(seq 1 $ITERATIONS); do
+    iteration_labels="${iteration_labels}'Iteration $i'"
+    [ $i -lt $ITERATIONS ] && iteration_labels="${iteration_labels}, "
+done
+sed -i "s|ITERATION_LABELS|$iteration_labels|g" "$HTML_FILE"
+
+bicep_times=$(IFS=,; echo "${BICEP_DEPLOY_TIMES[*]}")
+tf_times=$(IFS=,; echo "${TERRAFORM_DEPLOY_TIMES[*]}")
+ot_times=$(IFS=,; echo "${OPENTOFU_DEPLOY_TIMES[*]}")
+pulumi_times=$(IFS=,; echo "${PULUMI_DEPLOY_TIMES[*]}")
+
+sed -i "s|BICEP_DEPLOY_TIMES|$bicep_times|g" "$HTML_FILE"
+sed -i "s|TF_DEPLOY_TIMES|$tf_times|g" "$HTML_FILE"
+sed -i "s|OT_DEPLOY_TIMES|$ot_times|g" "$HTML_FILE"
+sed -i "s|PULUMI_DEPLOY_TIMES|$pulumi_times|g" "$HTML_FILE"
+
+# Comparison table - Calculate percentage differences from winner
+calc_pct_diff() {
+    local winner_val=$1
+    local other_val=$2
+    echo "scale=1; (($other_val - $winner_val) / $winner_val) * 100" | bc
+}
+
+# Deploy comparisons
+for tool in Bicep Terraform OpenTofu Pulumi; do
+    case "$tool" in
+        Bicep) tool_avg=$bicep_deploy_avg; placeholder="VS_BICEP_DEPLOY" ;;
+        Terraform) tool_avg=$tf_deploy_avg; placeholder="VS_TF_DEPLOY" ;;
+        OpenTofu) tool_avg=$ot_deploy_avg; placeholder="VS_OT_DEPLOY" ;;
+        Pulumi) tool_avg=$pulumi_deploy_avg; placeholder="VS_PULUMI_DEPLOY" ;;
+    esac
+    
+    if [ "$deploy_winner" = "$tool" ]; then
+        sed -i "s/$placeholder/-/g" "$HTML_FILE"
+    else
+        pct=$(calc_pct_diff "$deploy_best" "$tool_avg")
+        sed -i "s/$placeholder/${pct}% faster/g" "$HTML_FILE"
+    fi
+done
+
+# Destroy comparisons
+for tool in Bicep Terraform OpenTofu Pulumi; do
+    case "$tool" in
+        Bicep) tool_avg=$bicep_destroy_avg; placeholder="VS_BICEP_DESTROY" ;;
+        Terraform) tool_avg=$tf_destroy_avg; placeholder="VS_TF_DESTROY" ;;
+        OpenTofu) tool_avg=$ot_destroy_avg; placeholder="VS_OT_DESTROY" ;;
+        Pulumi) tool_avg=$pulumi_destroy_avg; placeholder="VS_PULUMI_DESTROY" ;;
+    esac
+    
+    if [ "$destroy_winner" = "$tool" ]; then
+        sed -i "s/$placeholder/-/g" "$HTML_FILE"
+    else
+        pct=$(calc_pct_diff "$destroy_best" "$tool_avg")
+        sed -i "s/$placeholder/${pct}% faster/g" "$HTML_FILE"
+    fi
+done
+
+echo -e "${GREEN}HTML report saved to: $HTML_FILE${NC}"
+
+# Open in browser if xdg-open is available
+if command -v xdg-open &> /dev/null; then
+    echo -e "${BLUE}Opening report in browser...${NC}"
+    xdg-open "$HTML_FILE" 2>/dev/null &
+fi
