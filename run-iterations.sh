@@ -352,33 +352,16 @@ echo -e "\n${GREEN}Results saved to: $RESULTS_DIR/benchmark_${TIMESTAMP}.json${N
 # Generate HTML report
 HTML_FILE="$RESULTS_DIR/benchmark_${TIMESTAMP}.html"
 
-# Calculate speed comparisons
+# Calculate speed comparisons (safe defaults to avoid divide by zero when tools not run)
 bicep_total=$(echo "$bicep_deploy_avg + $bicep_destroy_avg" | bc)
 tf_total=$(echo "$tf_deploy_avg + $tf_destroy_avg" | bc)
 pulumi_total=$(echo "$pulumi_deploy_avg + $pulumi_destroy_avg" | bc)
 
-# Calculate percentages vs winner
-if [ "$deploy_winner" = "Pulumi" ]; then
-    pulumi_vs_bicep_deploy=$(echo "scale=0; (1 - $pulumi_deploy_avg / $bicep_deploy_avg) * 100" | bc)
-    pulumi_vs_tf_deploy=$(echo "scale=0; (1 - $pulumi_deploy_avg / $tf_deploy_avg) * 100" | bc)
-elif [ "$deploy_winner" = "Bicep" ]; then
-    pulumi_vs_bicep_deploy="-"
-    pulumi_vs_tf_deploy=$(echo "scale=0; (1 - $bicep_deploy_avg / $tf_deploy_avg) * 100" | bc)
-else
-    pulumi_vs_bicep_deploy=$(echo "scale=0; (1 - $tf_deploy_avg / $bicep_deploy_avg) * 100" | bc)
-    pulumi_vs_tf_deploy="-"
-fi
-
-if [ "$destroy_winner" = "Pulumi" ]; then
-    pulumi_vs_bicep_destroy=$(echo "scale=0; (1 - $pulumi_destroy_avg / $bicep_destroy_avg) * 100" | bc)
-    pulumi_vs_tf_destroy=$(echo "scale=0; (1 - $pulumi_destroy_avg / $tf_destroy_avg) * 100" | bc)
-elif [ "$destroy_winner" = "Bicep" ]; then
-    pulumi_vs_bicep_destroy="-"
-    pulumi_vs_tf_destroy=$(echo "scale=0; (1 - $bicep_destroy_avg / $tf_destroy_avg) * 100" | bc)
-else
-    pulumi_vs_bicep_destroy=$(echo "scale=0; (1 - $tf_destroy_avg / $bicep_destroy_avg) * 100" | bc)
-    pulumi_vs_tf_destroy="-"
-fi
+# Set safe defaults for legacy percentage variables (not currently used in HTML)
+pulumi_vs_bicep_deploy="-"
+pulumi_vs_tf_deploy="-"
+pulumi_vs_bicep_destroy="-"
+pulumi_vs_tf_destroy="-"
 
 cat > "$HTML_FILE" << 'HTMLEOF'
 <!DOCTYPE html>
