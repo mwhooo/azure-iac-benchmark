@@ -162,7 +162,9 @@ benchmark_pulumi() {
     pulumi stack select benchmark 2>/dev/null || pulumi stack init benchmark 2>/dev/null || true
     
     local start=$(date +%s.%N)
-    pulumi up --yes --skip-preview 2>&1 | tail -5 || { echo -e "${RED}  ✗ Pulumi deploy failed${NC}"; PULUMI_DEPLOY_TIMES+=("0"); deactivate; cd "$SCRIPT_DIR"; return; }
+    pulumi up --yes --skip-preview 2>&1 | tee /tmp/pulumi_output.txt | tail -10 || { echo -e "${RED}  ✗ Pulumi deploy failed${NC}"; cat /tmp/pulumi_output.txt; PULUMI_DEPLOY_TIMES+=("0"); deactivate; cd "$SCRIPT_DIR"; return; }
+    # Show any errors from the output
+    grep -i "error\|failed" /tmp/pulumi_output.txt 2>/dev/null || true
     local end=$(date +%s.%N)
     local deploy_time=$(echo "$end - $start" | bc)
     PULUMI_DEPLOY_TIMES+=("$deploy_time")
