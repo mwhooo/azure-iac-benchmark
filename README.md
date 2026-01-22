@@ -240,21 +240,87 @@ az group delete -n azure-iac-benchmark-opentofu-rg --yes --no-wait
 az group delete -n azure-iac-benchmark-pulumi-rg --yes --no-wait
 ```
 
-## � GitHub Actions
+## 🤖 GitHub Actions
 
 Run benchmarks directly from GitHub without local setup:
 
-1. **Setup Azure Credentials**: Add `AZURE_CREDENTIALS` secret to your repository
-   ```bash
-   az ad sp create-for-rbac --name "iac-benchmark" --role contributor \
-     --scopes /subscriptions/{subscription-id} --sdk-auth
-   ```
-   Copy the JSON output to GitHub → Settings → Secrets → `AZURE_CREDENTIALS`
+### Required Azure Roles
 
-2. **Run Benchmark**: Go to Actions → "Run IaC Benchmark" → "Run workflow"
+The service principal needs these roles at the **subscription level**:
+
+| Role | Purpose |
+|------|---------|
+| **Contributor** | Create/delete resource groups, deploy all resources (VNets, Storage, App Service, etc.) |
+
+> **Note**: `Contributor` is sufficient for this benchmark. For production workloads, consider more restrictive custom roles.
+
+### Setup Steps
+
+1. **Create App Registration & Service Principal**:
+   ```bash
+   # Create the app registration and capture the appId
+   APP_ID=$(az ad app create --display-name "iac-benchmark-github" --query appId -o tsv)
+   echo "App ID: $APP_ID"
+   
+   # Create a service principal for the app
+   az ad sp create --id $APP_ID
+   
+   # Get your subscription ID
+   SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+   
+   # Assign Contributor role at subscription level
+   az role assignment create \
+     --assignee $APP_ID \
+     --role Contributor \
+     --scope /subscriptions/$SUBSCRIPTION_ID
+   ```
+
+2. **Configure Federated Credentials**: Set up OIDC trust between GitHub and Azure
+   
+   You need **two** federated credentials - one for the `main` branch and one for manual `workflow_dispatch` runs:
+   
+   ```bash
+   # Federated credential for main branch pushes
+   az ad app federated-credential create --id $APP_ID --parameters '{
+     "name": "github-actions-main",
+     "issuer": "https://token.actions.githubusercontent.com",
+     "subject": "repo:<your-github-username>/azure-iac-benchmark:ref:refs/heads/main",
+     "audiences": ["api://AzureADTokenExchange"],
+     "description": "GitHub Actions - main branch"
+   }'
+   
+   # Federated credential for manual workflow dispatch
+   az ad app federated-credential create --id $APP_ID --parameters '{
+     "name": "github-actions-dispatch",
+     "issuer": "https://token.actions.githubusercontent.com",
+     "subject": "repo:<your-github-username>/azure-iac-benchmark:environment:production",
+     "audiences": ["api://AzureADTokenExchange"],
+     "description": "GitHub Actions - workflow dispatch"
+   }'
+   ```
+   
+   > **Important**: Replace `<your-github-username>` with your actual GitHub username or organization name.
+
+3. **Add GitHub Secrets**: Go to your repo → Settings → Secrets and variables → Actions, and add:
+   
+   | Secret Name | Value | How to get it |
+   |-------------|-------|---------------|
+   | `AZURE_CLIENT_ID` | The App Registration ID | `echo $APP_ID` or find in Azure Portal → App registrations |
+   | `AZURE_TENANT_ID` | Your Azure AD tenant ID | `az account show --query tenantId -o tsv` |
+   | `AZURE_SUBSCRIPTION_ID` | Your subscription ID | `az account show --query id -o tsv` |
+
+4. **Run Benchmark**: Go to Actions → "Run IaC Benchmark" → "Run workflow"
    - Choose number of iterations (1, 3, or 5)
    - Results are uploaded as artifacts
    - Summary appears in the workflow run
+
+### Why OIDC?
+
+This approach uses **federated identity** (no stored secrets) which is more secure than storing service principal credentials:
+- ✅ No client secrets to rotate
+- ✅ Short-lived tokens (valid only for workflow run duration)
+- ✅ Scoped to specific repos/branches
+- ✅ Azure AD audit logs show exactly which workflow authenticated
 
 ## 🤝 Contributing
 
