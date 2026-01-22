@@ -22,6 +22,7 @@ BICEP_RG="azure-iac-benchmark-bicep-rg"
 TERRAFORM_RG="azure-iac-benchmark-terraform-rg"
 OPENTOFU_RG="azure-iac-benchmark-opentofu-rg"
 PULUMI_RG="azure-iac-benchmark-pulumi-rg"
+PULUMI_DOTNET_RG="azure-iac-benchmark-pulumi-dotnet-rg"
 
 # Results arrays
 declare -a BICEP_DEPLOY_TIMES
@@ -32,6 +33,8 @@ declare -a OPENTOFU_DEPLOY_TIMES
 declare -a OPENTOFU_DESTROY_TIMES
 declare -a PULUMI_DEPLOY_TIMES
 declare -a PULUMI_DESTROY_TIMES
+declare -a PULUMI_DOTNET_DEPLOY_TIMES
+declare -a PULUMI_DOTNET_DESTROY_TIMES
 
 mkdir -p "$RESULTS_DIR"
 
@@ -150,6 +153,32 @@ benchmark_pulumi() {
     cd "$SCRIPT_DIR"
 }
 
+# Benchmark Pulumi (.NET)
+benchmark_pulumi_dotnet() {
+    local iteration=$1
+    echo -e "\n${BLUE}[Pulumi .NET] Iteration $iteration - Deploying...${NC}"
+    
+    cd "$SCRIPT_DIR/pulumi-dotnet"
+    export PULUMI_CONFIG_PASSPHRASE=""
+    
+    local start=$(date +%s.%N)
+    pulumi up --yes --skip-preview > /dev/null 2>&1
+    local end=$(date +%s.%N)
+    local deploy_time=$(echo "$end - $start" | bc)
+    PULUMI_DOTNET_DEPLOY_TIMES+=("$deploy_time")
+    echo -e "${GREEN}  ✓ Deploy: ${deploy_time}s${NC}"
+    
+    echo -e "${BLUE}[Pulumi .NET] Iteration $iteration - Destroying...${NC}"
+    start=$(date +%s.%N)
+    pulumi destroy --yes --skip-preview > /dev/null 2>&1
+    end=$(date +%s.%N)
+    local destroy_time=$(echo "$end - $start" | bc)
+    PULUMI_DOTNET_DESTROY_TIMES+=("$destroy_time")
+    echo -e "${GREEN}  ✓ Destroy: ${destroy_time}s${NC}"
+    
+    cd "$SCRIPT_DIR"
+}
+
 # Calculate stats
 calc_stats() {
     local -n arr=$1
@@ -177,6 +206,7 @@ for ((i=1; i<=ITERATIONS; i++)); do
     benchmark_terraform "$i"
     benchmark_opentofu "$i"
     benchmark_pulumi "$i"
+    benchmark_pulumi_dotnet "$i"
 done
 
 # Calculate statistics
@@ -188,6 +218,8 @@ read ot_deploy_min ot_deploy_max ot_deploy_avg <<< $(calc_stats OPENTOFU_DEPLOY_
 read ot_destroy_min ot_destroy_max ot_destroy_avg <<< $(calc_stats OPENTOFU_DESTROY_TIMES)
 read pulumi_deploy_min pulumi_deploy_max pulumi_deploy_avg <<< $(calc_stats PULUMI_DEPLOY_TIMES)
 read pulumi_destroy_min pulumi_destroy_max pulumi_destroy_avg <<< $(calc_stats PULUMI_DESTROY_TIMES)
+read pulumi_dotnet_deploy_min pulumi_dotnet_deploy_max pulumi_dotnet_deploy_avg <<< $(calc_stats PULUMI_DOTNET_DEPLOY_TIMES)
+read pulumi_dotnet_destroy_min pulumi_dotnet_destroy_max pulumi_dotnet_destroy_avg <<< $(calc_stats PULUMI_DOTNET_DESTROY_TIMES)
 
 # Print summary
 echo -e "\n${CYAN}═══════════════════════════════════════════════════════════════${NC}"
@@ -200,7 +232,8 @@ printf "%-12s %10s %10s %10s\n" "--------" "------" "------" "------"
 printf "%-12s %10.2f %10.2f %10.2f\n" "Bicep" "$bicep_deploy_min" "$bicep_deploy_max" "$bicep_deploy_avg"
 printf "%-12s %10.2f %10.2f %10.2f\n" "Terraform" "$tf_deploy_min" "$tf_deploy_max" "$tf_deploy_avg"
 printf "%-12s %10.2f %10.2f %10.2f\n" "OpenTofu" "$ot_deploy_min" "$ot_deploy_max" "$ot_deploy_avg"
-printf "%-12s %10.2f %10.2f %10.2f\n" "Pulumi" "$pulumi_deploy_min" "$pulumi_deploy_max" "$pulumi_deploy_avg"
+printf "%-12s %10.2f %10.2f %10.2f\n" "Pulumi(Py)" "$pulumi_deploy_min" "$pulumi_deploy_max" "$pulumi_deploy_avg"
+printf "%-12s %10.2f %10.2f %10.2f\n" "Pulumi(.NET)" "$pulumi_dotnet_deploy_min" "$pulumi_dotnet_deploy_max" "$pulumi_dotnet_deploy_avg"
 
 echo -e "\n${GREEN}DESTROY TIMES (seconds):${NC}"
 printf "%-12s %10s %10s %10s\n" "Tool" "Min" "Max" "Avg"
@@ -208,20 +241,23 @@ printf "%-12s %10s %10s %10s\n" "--------" "------" "------" "------"
 printf "%-12s %10.2f %10.2f %10.2f\n" "Bicep" "$bicep_destroy_min" "$bicep_destroy_max" "$bicep_destroy_avg"
 printf "%-12s %10.2f %10.2f %10.2f\n" "Terraform" "$tf_destroy_min" "$tf_destroy_max" "$tf_destroy_avg"
 printf "%-12s %10.2f %10.2f %10.2f\n" "OpenTofu" "$ot_destroy_min" "$ot_destroy_max" "$ot_destroy_avg"
-printf "%-12s %10.2f %10.2f %10.2f\n" "Pulumi" "$pulumi_destroy_min" "$pulumi_destroy_max" "$pulumi_destroy_avg"
+printf "%-12s %10.2f %10.2f %10.2f\n" "Pulumi(Py)" "$pulumi_destroy_min" "$pulumi_destroy_max" "$pulumi_destroy_avg"
+printf "%-12s %10.2f %10.2f %10.2f\n" "Pulumi(.NET)" "$pulumi_dotnet_destroy_min" "$pulumi_dotnet_destroy_max" "$pulumi_dotnet_destroy_avg"
 
 # Determine winners
 deploy_winner="Bicep"
 deploy_best=$bicep_deploy_avg
 if (( $(echo "$tf_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="Terraform"; deploy_best=$tf_deploy_avg; fi
 if (( $(echo "$ot_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="OpenTofu"; deploy_best=$ot_deploy_avg; fi
-if (( $(echo "$pulumi_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="Pulumi"; deploy_best=$pulumi_deploy_avg; fi
+if (( $(echo "$pulumi_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="Pulumi (Python)"; deploy_best=$pulumi_deploy_avg; fi
+if (( $(echo "$pulumi_dotnet_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="Pulumi (.NET)"; deploy_best=$pulumi_dotnet_deploy_avg; fi
 
 destroy_winner="Bicep"
 destroy_best=$bicep_destroy_avg
 if (( $(echo "$tf_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="Terraform"; destroy_best=$tf_destroy_avg; fi
 if (( $(echo "$ot_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="OpenTofu"; destroy_best=$ot_destroy_avg; fi
-if (( $(echo "$pulumi_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="Pulumi"; destroy_best=$pulumi_destroy_avg; fi
+if (( $(echo "$pulumi_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="Pulumi (Python)"; destroy_best=$pulumi_destroy_avg; fi
+if (( $(echo "$pulumi_dotnet_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="Pulumi (.NET)"; destroy_best=$pulumi_dotnet_destroy_avg; fi
 
 echo -e "\n${YELLOW}🏆 WINNERS:${NC}"
 echo -e "  Fastest Deploy:  ${GREEN}$deploy_winner${NC} (${deploy_best}s avg)"
@@ -248,6 +284,10 @@ cat > "$RESULTS_DIR/benchmark_${TIMESTAMP}.json" << EOF
     "pulumi": {
       "deploy": { "times": [$(IFS=,; echo "${PULUMI_DEPLOY_TIMES[*]}")], "min": $pulumi_deploy_min, "max": $pulumi_deploy_max, "avg": $pulumi_deploy_avg },
       "destroy": { "times": [$(IFS=,; echo "${PULUMI_DESTROY_TIMES[*]}")], "min": $pulumi_destroy_min, "max": $pulumi_destroy_max, "avg": $pulumi_destroy_avg }
+    },
+    "pulumi_dotnet": {
+      "deploy": { "times": [$(IFS=,; echo "${PULUMI_DOTNET_DEPLOY_TIMES[*]}")], "min": $pulumi_dotnet_deploy_min, "max": $pulumi_dotnet_deploy_max, "avg": $pulumi_dotnet_deploy_avg },
+      "destroy": { "times": [$(IFS=,; echo "${PULUMI_DOTNET_DESTROY_TIMES[*]}")], "min": $pulumi_dotnet_destroy_min, "max": $pulumi_dotnet_destroy_max, "avg": $pulumi_dotnet_destroy_avg }
     }
   },
   "winners": {
@@ -304,6 +344,7 @@ cat > "$HTML_FILE" << 'HTMLEOF'
             --terraform-color: #7b42bc;
             --opentofu-color: #ffda18;
             --pulumi-color: #f7bf2a;
+            --pulumi-dotnet-color: #512bd4;
             --bg-color: #f8f9fa;
             --card-bg: #ffffff;
             --text-color: #333333;
@@ -352,7 +393,7 @@ cat > "$HTML_FILE" << 'HTMLEOF'
         
         .grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(5, 1fr);
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
@@ -384,6 +425,7 @@ cat > "$HTML_FILE" << 'HTMLEOF'
         .card.terraform h2 { border-color: var(--terraform-color); }
         .card.opentofu h2 { border-color: var(--opentofu-color); }
         .card.pulumi h2 { border-color: var(--pulumi-color); }
+        .card.pulumi-dotnet h2 { border-color: var(--pulumi-dotnet-color); }
         
         .tool-icon {
             width: 36px;
@@ -400,6 +442,7 @@ cat > "$HTML_FILE" << 'HTMLEOF'
         .card.terraform .tool-icon { background: var(--terraform-color); }
         .card.opentofu .tool-icon { background: var(--opentofu-color); }
         .card.pulumi .tool-icon { background: var(--pulumi-color); }
+        .card.pulumi-dotnet .tool-icon { background: var(--pulumi-dotnet-color); }
         
         .metric {
             display: flex;
@@ -418,6 +461,7 @@ cat > "$HTML_FILE" << 'HTMLEOF'
         .card.terraform .metric-value.time { color: var(--terraform-color); }
         .card.opentofu .metric-value.time { color: var(--opentofu-color); }
         .card.pulumi .metric-value.time { color: var(--pulumi-color); }
+        .card.pulumi-dotnet .metric-value.time { color: var(--pulumi-dotnet-color); }
         
         .badge {
             display: inline-block;
@@ -485,7 +529,7 @@ cat > "$HTML_FILE" << 'HTMLEOF'
     <div class="container">
         <header>
             <h1>🏎️ IaC Benchmark Report</h1>
-            <p>Bicep vs Terraform vs OpenTofu vs Pulumi - ITERATIONS_PLACEHOLDER Iterations Each</p>
+            <p>Bicep vs Terraform vs OpenTofu vs Pulumi (Python & .NET) - ITERATIONS_PLACEHOLDER Iterations Each</p>
             <div class="timestamp">Generated: DATETIME_PLACEHOLDER | Region: West Europe</div>
         </header>
         
@@ -568,7 +612,7 @@ cat > "$HTML_FILE" << 'HTMLEOF'
             </div>
             
             <div class="card pulumi">
-                <h2><span class="tool-icon">P</span> PulumiPULUMI_BADGE_PLACEHOLDER</h2>
+                <h2><span class="tool-icon">P</span> Pulumi (Python)PULUMI_BADGE_PLACEHOLDER</h2>
                 <div class="metric">
                     <span class="metric-label">Avg Deploy Time</span>
                     <span class="metric-value time">PULUMI_DEPLOY_AVGsPULUMI_DEPLOY_FASTEST</span>
@@ -584,6 +628,30 @@ cat > "$HTML_FILE" << 'HTMLEOF'
                 <div class="metric">
                     <span class="metric-label">Destroy Range</span>
                     <span class="metric-value">PULUMI_DESTROY_MINs - PULUMI_DESTROY_MAXs</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Status</span>
+                    <span class="badge success">✓ ITERATIONS_PLACEHOLDER/ITERATIONS_PLACEHOLDER Success</span>
+                </div>
+            </div>
+            
+            <div class="card pulumi-dotnet">
+                <h2><span class="tool-icon">C#</span> Pulumi (.NET)PULUMI_DOTNET_BADGE_PLACEHOLDER</h2>
+                <div class="metric">
+                    <span class="metric-label">Avg Deploy Time</span>
+                    <span class="metric-value time">PULUMI_DOTNET_DEPLOY_AVGsPULUMI_DOTNET_DEPLOY_FASTEST</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Avg Destroy Time</span>
+                    <span class="metric-value time">PULUMI_DOTNET_DESTROY_AVGsPULUMI_DOTNET_DESTROY_FASTEST</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Deploy Range</span>
+                    <span class="metric-value">PULUMI_DOTNET_DEPLOY_MINs - PULUMI_DOTNET_DEPLOY_MAXs</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Destroy Range</span>
+                    <span class="metric-value">PULUMI_DOTNET_DESTROY_MINs - PULUMI_DOTNET_DESTROY_MAXs</span>
                 </div>
                 <div class="metric">
                     <span class="metric-label">Status</span>
@@ -621,7 +689,8 @@ cat > "$HTML_FILE" << 'HTMLEOF'
                         <th>vs Bicep</th>
                         <th>vs Terraform</th>
                         <th>vs OpenTofu</th>
-                        <th>vs Pulumi</th>
+                        <th>vs Pulumi (Py)</th>
+                        <th>vs Pulumi (.NET)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -632,6 +701,7 @@ cat > "$HTML_FILE" << 'HTMLEOF'
                         <td>VS_TF_DEPLOY</td>
                         <td>VS_OT_DEPLOY</td>
                         <td>VS_PULUMI_DEPLOY</td>
+                        <td>VS_PULUMI_DOTNET_DEPLOY</td>
                     </tr>
                     <tr>
                         <td><strong>Destroy Speed</strong></td>
@@ -640,6 +710,7 @@ cat > "$HTML_FILE" << 'HTMLEOF'
                         <td>VS_TF_DESTROY</td>
                         <td>VS_OT_DESTROY</td>
                         <td>VS_PULUMI_DESTROY</td>
+                        <td>VS_PULUMI_DOTNET_DESTROY</td>
                     </tr>
                 </tbody>
             </table>
@@ -656,12 +727,12 @@ cat > "$HTML_FILE" << 'HTMLEOF'
         new Chart(document.getElementById('deployChart').getContext('2d'), {
             type: 'bar',
             data: {
-                labels: ['Bicep', 'Terraform', 'OpenTofu', 'Pulumi'],
+                labels: ['Bicep', 'Terraform', 'OpenTofu', 'Pulumi (Py)', 'Pulumi (.NET)'],
                 datasets: [{
                     label: 'Avg Deploy Time (s)',
-                    data: [BICEP_DEPLOY_AVG, TF_DEPLOY_AVG, OT_DEPLOY_AVG, PULUMI_DEPLOY_AVG],
-                    backgroundColor: ['rgba(0,120,212,0.8)', 'rgba(123,66,188,0.8)', 'rgba(255,218,24,0.8)', 'rgba(247,191,42,0.8)'],
-                    borderColor: ['rgba(0,120,212,1)', 'rgba(123,66,188,1)', 'rgba(255,218,24,1)', 'rgba(247,191,42,1)'],
+                    data: [BICEP_DEPLOY_AVG, TF_DEPLOY_AVG, OT_DEPLOY_AVG, PULUMI_DEPLOY_AVG, PULUMI_DOTNET_DEPLOY_AVG],
+                    backgroundColor: ['rgba(0,120,212,0.8)', 'rgba(123,66,188,0.8)', 'rgba(255,218,24,0.8)', 'rgba(247,191,42,0.8)', 'rgba(81,43,212,0.8)'],
+                    borderColor: ['rgba(0,120,212,1)', 'rgba(123,66,188,1)', 'rgba(255,218,24,1)', 'rgba(247,191,42,1)', 'rgba(81,43,212,1)'],
                     borderWidth: 2,
                     borderRadius: 8
                 }]
@@ -681,12 +752,12 @@ cat > "$HTML_FILE" << 'HTMLEOF'
         new Chart(document.getElementById('destroyChart').getContext('2d'), {
             type: 'bar',
             data: {
-                labels: ['Bicep', 'Terraform', 'OpenTofu', 'Pulumi'],
+                labels: ['Bicep', 'Terraform', 'OpenTofu', 'Pulumi (Py)', 'Pulumi (.NET)'],
                 datasets: [{
                     label: 'Avg Destroy Time (s)',
-                    data: [BICEP_DESTROY_AVG, TF_DESTROY_AVG, OT_DESTROY_AVG, PULUMI_DESTROY_AVG],
-                    backgroundColor: ['rgba(0,120,212,0.8)', 'rgba(123,66,188,0.8)', 'rgba(255,218,24,0.8)', 'rgba(247,191,42,0.8)'],
-                    borderColor: ['rgba(0,120,212,1)', 'rgba(123,66,188,1)', 'rgba(255,218,24,1)', 'rgba(247,191,42,1)'],
+                    data: [BICEP_DESTROY_AVG, TF_DESTROY_AVG, OT_DESTROY_AVG, PULUMI_DESTROY_AVG, PULUMI_DOTNET_DESTROY_AVG],
+                    backgroundColor: ['rgba(0,120,212,0.8)', 'rgba(123,66,188,0.8)', 'rgba(255,218,24,0.8)', 'rgba(247,191,42,0.8)', 'rgba(81,43,212,0.8)'],
+                    borderColor: ['rgba(0,120,212,1)', 'rgba(123,66,188,1)', 'rgba(255,218,24,1)', 'rgba(247,191,42,1)', 'rgba(81,43,212,1)'],
                     borderWidth: 2,
                     borderRadius: 8
                 }]
@@ -733,10 +804,19 @@ cat > "$HTML_FILE" << 'HTMLEOF'
                         fill: false
                     },
                     {
-                        label: 'Pulumi Deploy',
+                        label: 'Pulumi (Py) Deploy',
                         data: [PULUMI_DEPLOY_TIMES],
                         borderColor: 'rgba(247,191,42,1)',
                         backgroundColor: 'rgba(247,191,42,0.1)',
+                        tension: 0.3,
+                        fill: false,
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'Pulumi (.NET) Deploy',
+                        data: [PULUMI_DOTNET_DEPLOY_TIMES],
+                        borderColor: 'rgba(81,43,212,1)',
+                        backgroundColor: 'rgba(81,43,212,0.1)',
                         tension: 0.3,
                         fill: false,
                         borderWidth: 3
@@ -777,14 +857,16 @@ case "$deploy_winner" in
     Bicep) sed -i "s/DEPLOY_WINNER_COLOR/var(--bicep-color)/g" "$HTML_FILE" ;;
     Terraform) sed -i "s/DEPLOY_WINNER_COLOR/var(--terraform-color)/g" "$HTML_FILE" ;;
     OpenTofu) sed -i "s/DEPLOY_WINNER_COLOR/var(--opentofu-color)/g" "$HTML_FILE" ;;
-    Pulumi) sed -i "s/DEPLOY_WINNER_COLOR/var(--pulumi-color)/g" "$HTML_FILE" ;;
+    "Pulumi (Python)") sed -i "s/DEPLOY_WINNER_COLOR/var(--pulumi-color)/g" "$HTML_FILE" ;;
+    "Pulumi (.NET)") sed -i "s/DEPLOY_WINNER_COLOR/var(--pulumi-dotnet-color)/g" "$HTML_FILE" ;;
 esac
 
 case "$destroy_winner" in
     Bicep) sed -i "s/DESTROY_WINNER_COLOR/var(--bicep-color)/g" "$HTML_FILE" ;;
     Terraform) sed -i "s/DESTROY_WINNER_COLOR/var(--terraform-color)/g" "$HTML_FILE" ;;
     OpenTofu) sed -i "s/DESTROY_WINNER_COLOR/var(--opentofu-color)/g" "$HTML_FILE" ;;
-    Pulumi) sed -i "s/DESTROY_WINNER_COLOR/var(--pulumi-color)/g" "$HTML_FILE" ;;
+    "Pulumi (Python)") sed -i "s/DESTROY_WINNER_COLOR/var(--pulumi-color)/g" "$HTML_FILE" ;;
+    "Pulumi (.NET)") sed -i "s/DESTROY_WINNER_COLOR/var(--pulumi-dotnet-color)/g" "$HTML_FILE" ;;
 esac
 
 # Winner badges
@@ -806,10 +888,16 @@ else
     sed -i 's/OPENTOFU_BADGE_PLACEHOLDER//g' "$HTML_FILE"
 fi
 
-if [ "$deploy_winner" = "Pulumi" ] && [ "$destroy_winner" = "Pulumi" ]; then
+if [ "$deploy_winner" = "Pulumi (Python)" ] && [ "$destroy_winner" = "Pulumi (Python)" ]; then
     sed -i 's/PULUMI_BADGE_PLACEHOLDER/ <span class="badge winner">🏆 Winner<\/span>/g' "$HTML_FILE"
 else
     sed -i 's/PULUMI_BADGE_PLACEHOLDER//g' "$HTML_FILE"
+fi
+
+if [ "$deploy_winner" = "Pulumi (.NET)" ] && [ "$destroy_winner" = "Pulumi (.NET)" ]; then
+    sed -i 's/PULUMI_DOTNET_BADGE_PLACEHOLDER/ <span class="badge winner">🏆 Winner<\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/PULUMI_DOTNET_BADGE_PLACEHOLDER//g' "$HTML_FILE"
 fi
 
 # Fastest badges
@@ -849,16 +937,28 @@ else
     sed -i 's/OT_DESTROY_FASTEST//g' "$HTML_FILE"
 fi
 
-if [ "$deploy_winner" = "Pulumi" ]; then
+if [ "$deploy_winner" = "Pulumi (Python)" ]; then
     sed -i 's/PULUMI_DEPLOY_FASTEST/ <span class="badge winner">Fastest<\/span>/g' "$HTML_FILE"
 else
     sed -i 's/PULUMI_DEPLOY_FASTEST//g' "$HTML_FILE"
 fi
 
-if [ "$destroy_winner" = "Pulumi" ]; then
+if [ "$destroy_winner" = "Pulumi (Python)" ]; then
     sed -i 's/PULUMI_DESTROY_FASTEST/ <span class="badge winner">Fastest<\/span>/g' "$HTML_FILE"
 else
     sed -i 's/PULUMI_DESTROY_FASTEST//g' "$HTML_FILE"
+fi
+
+if [ "$deploy_winner" = "Pulumi (.NET)" ]; then
+    sed -i 's/PULUMI_DOTNET_DEPLOY_FASTEST/ <span class="badge winner">Fastest<\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/PULUMI_DOTNET_DEPLOY_FASTEST//g' "$HTML_FILE"
+fi
+
+if [ "$destroy_winner" = "Pulumi (.NET)" ]; then
+    sed -i 's/PULUMI_DOTNET_DESTROY_FASTEST/ <span class="badge winner">Fastest<\/span>/g' "$HTML_FILE"
+else
+    sed -i 's/PULUMI_DOTNET_DESTROY_FASTEST//g' "$HTML_FILE"
 fi
 
 # Metric values
@@ -890,6 +990,13 @@ sed -i "s/PULUMI_DEPLOY_MAX/$pulumi_deploy_max/g" "$HTML_FILE"
 sed -i "s/PULUMI_DESTROY_MIN/$pulumi_destroy_min/g" "$HTML_FILE"
 sed -i "s/PULUMI_DESTROY_MAX/$pulumi_destroy_max/g" "$HTML_FILE"
 
+sed -i "s/PULUMI_DOTNET_DEPLOY_AVG/$pulumi_dotnet_deploy_avg/g" "$HTML_FILE"
+sed -i "s/PULUMI_DOTNET_DESTROY_AVG/$pulumi_dotnet_destroy_avg/g" "$HTML_FILE"
+sed -i "s/PULUMI_DOTNET_DEPLOY_MIN/$pulumi_dotnet_deploy_min/g" "$HTML_FILE"
+sed -i "s/PULUMI_DOTNET_DEPLOY_MAX/$pulumi_dotnet_deploy_max/g" "$HTML_FILE"
+sed -i "s/PULUMI_DOTNET_DESTROY_MIN/$pulumi_dotnet_destroy_min/g" "$HTML_FILE"
+sed -i "s/PULUMI_DOTNET_DESTROY_MAX/$pulumi_dotnet_destroy_max/g" "$HTML_FILE"
+
 # Iteration data
 iteration_labels=""
 for i in $(seq 1 $ITERATIONS); do
@@ -902,10 +1009,12 @@ bicep_times=$(IFS=,; echo "${BICEP_DEPLOY_TIMES[*]}")
 tf_times=$(IFS=,; echo "${TERRAFORM_DEPLOY_TIMES[*]}")
 ot_times=$(IFS=,; echo "${OPENTOFU_DEPLOY_TIMES[*]}")
 pulumi_times=$(IFS=,; echo "${PULUMI_DEPLOY_TIMES[*]}")
+pulumi_dotnet_times=$(IFS=,; echo "${PULUMI_DOTNET_DEPLOY_TIMES[*]}")
 
 sed -i "s|BICEP_DEPLOY_TIMES|$bicep_times|g" "$HTML_FILE"
 sed -i "s|TF_DEPLOY_TIMES|$tf_times|g" "$HTML_FILE"
 sed -i "s|OT_DEPLOY_TIMES|$ot_times|g" "$HTML_FILE"
+sed -i "s|PULUMI_DOTNET_DEPLOY_TIMES|$pulumi_dotnet_times|g" "$HTML_FILE"
 sed -i "s|PULUMI_DEPLOY_TIMES|$pulumi_times|g" "$HTML_FILE"
 
 # Comparison table - Calculate percentage differences from winner
@@ -916,12 +1025,13 @@ calc_pct_diff() {
 }
 
 # Deploy comparisons
-for tool in Bicep Terraform OpenTofu Pulumi; do
+for tool in Bicep Terraform OpenTofu "Pulumi (Python)" "Pulumi (.NET)"; do
     case "$tool" in
         Bicep) tool_avg=$bicep_deploy_avg; placeholder="VS_BICEP_DEPLOY" ;;
         Terraform) tool_avg=$tf_deploy_avg; placeholder="VS_TF_DEPLOY" ;;
         OpenTofu) tool_avg=$ot_deploy_avg; placeholder="VS_OT_DEPLOY" ;;
-        Pulumi) tool_avg=$pulumi_deploy_avg; placeholder="VS_PULUMI_DEPLOY" ;;
+        "Pulumi (Python)") tool_avg=$pulumi_deploy_avg; placeholder="VS_PULUMI_DEPLOY" ;;
+        "Pulumi (.NET)") tool_avg=$pulumi_dotnet_deploy_avg; placeholder="VS_PULUMI_DOTNET_DEPLOY" ;;
     esac
     
     if [ "$deploy_winner" = "$tool" ]; then
@@ -933,12 +1043,13 @@ for tool in Bicep Terraform OpenTofu Pulumi; do
 done
 
 # Destroy comparisons
-for tool in Bicep Terraform OpenTofu Pulumi; do
+for tool in Bicep Terraform OpenTofu "Pulumi (Python)" "Pulumi (.NET)"; do
     case "$tool" in
         Bicep) tool_avg=$bicep_destroy_avg; placeholder="VS_BICEP_DESTROY" ;;
         Terraform) tool_avg=$tf_destroy_avg; placeholder="VS_TF_DESTROY" ;;
         OpenTofu) tool_avg=$ot_destroy_avg; placeholder="VS_OT_DESTROY" ;;
-        Pulumi) tool_avg=$pulumi_destroy_avg; placeholder="VS_PULUMI_DESTROY" ;;
+        "Pulumi (Python)") tool_avg=$pulumi_destroy_avg; placeholder="VS_PULUMI_DESTROY" ;;
+        "Pulumi (.NET)") tool_avg=$pulumi_dotnet_destroy_avg; placeholder="VS_PULUMI_DOTNET_DESTROY" ;;
     esac
     
     if [ "$destroy_winner" = "$tool" ]; then

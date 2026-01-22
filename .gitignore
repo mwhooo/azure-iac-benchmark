@@ -12,11 +12,16 @@ opentofu/*.tfstate.backup
 opentofu/.terraform.lock.hcl
 opentofu/terraform.tfvars
 
-# Pulumi
+# Pulumi (Python)
 pulumi/venv/
 pulumi/.pulumi/
 pulumi/__pycache__/
 pulumi/*.pyc
+
+# Pulumi (.NET)
+pulumi-dotnet/bin/
+pulumi-dotnet/obj/
+pulumi-dotnet/.pulumi/
 
 # Results (keep structure, ignore data)
 results/*.json

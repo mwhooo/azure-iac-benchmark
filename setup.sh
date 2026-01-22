@@ -25,9 +25,10 @@ BICEP_RG="${BICEP_RG:-azure-iac-benchmark-bicep-rg}"
 TERRAFORM_RG="${TERRAFORM_RG:-azure-iac-benchmark-terraform-rg}"
 OPENTOFU_RG="${OPENTOFU_RG:-azure-iac-benchmark-opentofu-rg}"
 PULUMI_RG="${PULUMI_RG:-azure-iac-benchmark-pulumi-rg}"
+PULUMI_DOTNET_RG="${PULUMI_DOTNET_RG:-azure-iac-benchmark-pulumi-dotnet-rg}"
 
 # Check prerequisites
-echo -e "\n${BLUE}[1/7] Checking prerequisites...${NC}"
+echo -e "\n${BLUE}[1/8] Checking prerequisites...${NC}"
 
 check_command() {
     if command -v "$1" &> /dev/null; then
@@ -103,6 +104,7 @@ check_command "terraform" || MISSING=1
 check_command "tofu" || { install_opentofu || MISSING=1; }
 check_command "pulumi" || MISSING=1
 check_command "python3" || MISSING=1
+check_command "dotnet" || MISSING=1
 
 if [ $MISSING -eq 1 ]; then
     echo -e "\n${RED}Please install missing prerequisites before continuing.${NC}"
@@ -111,7 +113,7 @@ if [ $MISSING -eq 1 ]; then
 fi
 
 # Check Azure login
-echo -e "\n${BLUE}[2/7] Checking Azure login...${NC}"
+echo -e "\n${BLUE}[2/8] Checking Azure login...${NC}"
 if az account show &> /dev/null; then
     ACCOUNT=$(az account show --query name -o tsv)
     echo -e "  ${GREEN}✓${NC} Logged in to Azure: $ACCOUNT"
@@ -121,7 +123,7 @@ else
 fi
 
 # Create resource groups
-echo -e "\n${BLUE}[3/7] Creating Azure resource groups...${NC}"
+echo -e "\n${BLUE}[3/8] Creating Azure resource groups...${NC}"
 
 create_rg() {
     local rg=$1
@@ -137,9 +139,10 @@ create_rg "$BICEP_RG"
 create_rg "$TERRAFORM_RG"
 create_rg "$OPENTOFU_RG"
 create_rg "$PULUMI_RG"
+create_rg "$PULUMI_DOTNET_RG"
 
 # Initialize Terraform
-echo -e "\n${BLUE}[4/7] Initializing Terraform...${NC}"
+echo -e "\n${BLUE}[4/8] Initializing Terraform...${NC}"
 cd "$SCRIPT_DIR/terraform"
 if [ -d ".terraform" ]; then
     echo -e "  ${GREEN}✓${NC} Terraform already initialized"
@@ -158,7 +161,7 @@ TFVARS
 fi
 
 # Initialize OpenTofu
-echo -e "\n${BLUE}[5/7] Initializing OpenTofu...${NC}"
+echo -e "\n${BLUE}[5/8] Initializing OpenTofu...${NC}"
 cd "$SCRIPT_DIR/opentofu"
 if [ -d ".terraform" ]; then
     echo -e "  ${GREEN}✓${NC} OpenTofu already initialized"
@@ -177,7 +180,7 @@ TFVARS
 fi
 
 # Initialize Pulumi
-echo -e "\n${BLUE}[6/7] Initializing Pulumi...${NC}"
+echo -e "\n${BLUE}[6/8] Initializing Pulumi (Python)...${NC}"
 cd "$SCRIPT_DIR/pulumi"
 
 # Create virtual environment
@@ -210,8 +213,35 @@ echo -e "  ${GREEN}✓${NC} Configured Pulumi stack"
 
 deactivate
 
+# Initialize Pulumi (.NET)
+echo -e "\n${BLUE}[7/8] Initializing Pulumi (.NET)...${NC}"
+cd "$SCRIPT_DIR/pulumi-dotnet"
+
+# Restore .NET packages
+if [ -d "bin" ] && [ -d "obj" ]; then
+    echo -e "  ${GREEN}✓${NC} .NET packages already restored"
+else
+    dotnet restore --verbosity quiet 2>/dev/null
+    echo -e "  ${GREEN}✓${NC} Restored .NET packages"
+fi
+
+# Initialize Pulumi stack
+export PULUMI_CONFIG_PASSPHRASE=""
+if pulumi stack ls 2>/dev/null | grep -q "benchmark"; then
+    echo -e "  ${GREEN}✓${NC} Pulumi stack 'benchmark' exists"
+else
+    pulumi stack init benchmark --non-interactive 2>/dev/null || true
+    echo -e "  ${GREEN}✓${NC} Created Pulumi stack 'benchmark'"
+fi
+
+# Configure Pulumi
+pulumi config set azure-native:location "$LOCATION" 2>/dev/null || true
+pulumi config set resourceGroupName "$PULUMI_DOTNET_RG" 2>/dev/null || true
+pulumi config set location "$LOCATION" 2>/dev/null || true
+echo -e "  ${GREEN}✓${NC} Configured Pulumi .NET stack"
+
 # Verify Bicep
-echo -e "\n${BLUE}[7/7] Verifying Bicep templates...${NC}"
+echo -e "\n${BLUE}[8/8] Verifying Bicep templates...${NC}"
 cd "$SCRIPT_DIR/bicep"
 if az bicep build --file main-template.bicep --stdout > /dev/null 2>&1; then
     echo -e "  ${GREEN}✓${NC} Bicep templates compile successfully"
@@ -228,7 +258,8 @@ echo -e "\nResource groups created:"
 echo -e "  • ${CYAN}$BICEP_RG${NC}"
 echo -e "  • ${CYAN}$TERRAFORM_RG${NC}"
 echo -e "  • ${CYAN}$OPENTOFU_RG${NC}"
-echo -e "  • ${CYAN}$PULUMI_RG${NC}"
+echo -e "  • ${CYAN}$PULUMI_RG${NC} (Python)"
+echo -e "  • ${CYAN}$PULUMI_DOTNET_RG${NC} (.NET)"
 echo -e "\nRun the benchmark with:"
 echo -e "  ${YELLOW}./run-iterations.sh${NC}        # 3 iterations (default)"
 echo -e "  ${YELLOW}./run-iterations.sh 5${NC}      # 5 iterations"

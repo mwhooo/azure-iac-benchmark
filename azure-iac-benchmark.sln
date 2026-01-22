@@ -1,0 +1,29 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "pulumi-dotnet", "pulumi-dotnet", "{2775FC29-6E81-8786-C758-CF1860413D71}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "azure-iac-benchmark-dotnet", "pulumi-dotnet\azure-iac-benchmark-dotnet.csproj", "{178F139F-13C1-77B8-F430-86CCABC21389}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{178F139F-13C1-77B8-F430-86CCABC21389}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{178F139F-13C1-77B8-F430-86CCABC21389}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{178F139F-13C1-77B8-F430-86CCABC21389}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{178F139F-13C1-77B8-F430-86CCABC21389}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{178F139F-13C1-77B8-F430-86CCABC21389} = {2775FC29-6E81-8786-C758-CF1860413D71}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {38D6832E-DAEE-42F6-AB7A-B52A5E9A0B76}
+	EndGlobalSection
+EndGlobal
