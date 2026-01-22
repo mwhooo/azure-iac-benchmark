@@ -30,7 +30,6 @@ env:
   TERRAFORM_RG: azure-iac-benchmark-terraform-rg
   OPENTOFU_RG: azure-iac-benchmark-opentofu-rg
   PULUMI_RG: azure-iac-benchmark-pulumi-rg
-  PULUMI_DOTNET_RG: azure-iac-benchmark-pulumi-dotnet-rg
 
 permissions:
   id-token: write
@@ -63,11 +62,6 @@ jobs:
         with:
           tofu_wrapper: false
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -81,13 +75,6 @@ jobs:
           # Install bc for calculations
           sudo apt-get update && sudo apt-get install -y bc
           
-          # Setup Pulumi Python
-          cd pulumi
-          python -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt
-          cd ..
-          
           # Setup Pulumi .NET
           cd pulumi-dotnet
           dotnet restore
@@ -99,7 +86,6 @@ jobs:
           az group create -n $TERRAFORM_RG -l $LOCATION -o none 2>/dev/null || true
           az group create -n $OPENTOFU_RG -l $LOCATION -o none 2>/dev/null || true
           az group create -n $PULUMI_RG -l $LOCATION -o none 2>/dev/null || true
-          az group create -n $PULUMI_DOTNET_RG -l $LOCATION -o none 2>/dev/null || true
 
       - name: Initialize Terraform
         run: |
@@ -123,23 +109,11 @@ jobs:
         env:
           PULUMI_CONFIG_PASSPHRASE: ""
         run: |
-          cd pulumi
-          source venv/bin/activate
-          pulumi login --local
-          pulumi stack init benchmark --non-interactive 2>/dev/null || pulumi stack select benchmark
-          pulumi config set azure-native:location $LOCATION
-          pulumi config set resourceGroupName $PULUMI_RG
-          pulumi config set location $LOCATION
-
-      - name: Initialize Pulumi .NET
-        env:
-          PULUMI_CONFIG_PASSPHRASE: ""
-        run: |
           cd pulumi-dotnet
           pulumi login --local
           pulumi stack init benchmark --non-interactive 2>/dev/null || pulumi stack select benchmark
           pulumi config set azure-native:location $LOCATION
-          pulumi config set resourceGroupName $PULUMI_DOTNET_RG
+          pulumi config set resourceGroupName $PULUMI_RG
           pulumi config set location $LOCATION
 
       - name: Run Benchmark
@@ -175,8 +149,7 @@ jobs:
           echo "| Bicep | $(jq -r '.results.bicep.deploy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
           echo "| Terraform | $(jq -r '.results.terraform.deploy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
           echo "| OpenTofu | $(jq -r '.results.opentofu.deploy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
-          echo "| Pulumi (Py) | $(jq -r '.results.pulumi.deploy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
-          echo "| Pulumi (.NET) | $(jq -r '.results.pulumi_dotnet.deploy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pulumi | $(jq -r '.results.pulumi.deploy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "### Destroy Times (avg)" >> $GITHUB_STEP_SUMMARY
@@ -185,8 +158,7 @@ jobs:
           echo "| Bicep | $(jq -r '.results.bicep.destroy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
           echo "| Terraform | $(jq -r '.results.terraform.destroy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
           echo "| OpenTofu | $(jq -r '.results.opentofu.destroy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
-          echo "| Pulumi (Py) | $(jq -r '.results.pulumi.destroy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
-          echo "| Pulumi (.NET) | $(jq -r '.results.pulumi_dotnet.destroy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pulumi | $(jq -r '.results.pulumi.destroy.avg' $LATEST_JSON)s |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "### 🏆 Winners" >> $GITHUB_STEP_SUMMARY
@@ -201,4 +173,3 @@ jobs:
           az group delete -n $TERRAFORM_RG --yes --no-wait 2>/dev/null || true
           az group delete -n $OPENTOFU_RG --yes --no-wait 2>/dev/null || true
           az group delete -n $PULUMI_RG --yes --no-wait 2>/dev/null || true
-          az group delete -n $PULUMI_DOTNET_RG --yes --no-wait 2>/dev/null || true
