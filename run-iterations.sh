@@ -18,11 +18,34 @@ NC='\033[0m'
 
 # Configuration
 ITERATIONS=${1:-3}
+TOOLS_FILTER=${2:-all}
 BICEP_RG="azure-iac-benchmark-bicep-rg"
 TERRAFORM_RG="azure-iac-benchmark-terraform-rg"
 OPENTOFU_RG="azure-iac-benchmark-opentofu-rg"
 PULUMI_RG="azure-iac-benchmark-pulumi-rg"
 PULUMI_DOTNET_RG="azure-iac-benchmark-pulumi-dotnet-rg"
+
+# Tool filtering
+RUN_BICEP=false
+RUN_TERRAFORM=false
+RUN_OPENTOFU=false
+RUN_PULUMI=false
+RUN_PULUMI_DOTNET=false
+
+case "$TOOLS_FILTER" in
+    all)
+        RUN_BICEP=true; RUN_TERRAFORM=true; RUN_OPENTOFU=true; RUN_PULUMI=true; RUN_PULUMI_DOTNET=true ;;
+    bicep-only)
+        RUN_BICEP=true ;;
+    terraform-only)
+        RUN_TERRAFORM=true ;;
+    opentofu-only)
+        RUN_OPENTOFU=true ;;
+    pulumi-only)
+        RUN_PULUMI=true; RUN_PULUMI_DOTNET=true ;;
+    *)
+        echo "Unknown tools filter: $TOOLS_FILTER"; exit 1 ;;
+esac
 
 # Results arrays
 declare -a BICEP_DEPLOY_TIMES
@@ -190,6 +213,13 @@ benchmark_pulumi_dotnet() {
 # Calculate stats
 calc_stats() {
     local -n arr=$1
+    
+    # Return zeros if array is empty
+    if [ ${#arr[@]} -eq 0 ]; then
+        echo "0 0 0"
+        return
+    fi
+    
     local sum=0
     local min=999999
     local max=0
@@ -210,11 +240,11 @@ for ((i=1; i<=ITERATIONS; i++)); do
     echo -e "${YELLOW}                    ITERATION $i of $ITERATIONS                     ${NC}"
     echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     
-    benchmark_bicep "$i"
-    benchmark_terraform "$i"
-    benchmark_opentofu "$i"
-    benchmark_pulumi "$i"
-    benchmark_pulumi_dotnet "$i"
+    [ "$RUN_BICEP" = true ] && benchmark_bicep "$i"
+    [ "$RUN_TERRAFORM" = true ] && benchmark_terraform "$i"
+    [ "$RUN_OPENTOFU" = true ] && benchmark_opentofu "$i"
+    [ "$RUN_PULUMI" = true ] && benchmark_pulumi "$i"
+    [ "$RUN_PULUMI_DOTNET" = true ] && benchmark_pulumi_dotnet "$i"
 done
 
 # Calculate statistics

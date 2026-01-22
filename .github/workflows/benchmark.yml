@@ -147,7 +147,7 @@ jobs:
           PULUMI_CONFIG_PASSPHRASE: ""
         run: |
           chmod +x run-iterations.sh
-          ./run-iterations.sh ${{ inputs.iterations }}
+          ./run-iterations.sh ${{ inputs.iterations }} ${{ inputs.tools }}
 
       - name: Upload Results
         uses: actions/upload-artifact@v4
