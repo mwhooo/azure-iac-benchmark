@@ -282,20 +282,32 @@ printf "%-12s %10.2f %10.2f %10.2f\n" "OpenTofu" "$ot_destroy_min" "$ot_destroy_
 printf "%-12s %10.2f %10.2f %10.2f\n" "Pulumi(Py)" "$pulumi_destroy_min" "$pulumi_destroy_max" "$pulumi_destroy_avg"
 printf "%-12s %10.2f %10.2f %10.2f\n" "Pulumi(.NET)" "$pulumi_dotnet_destroy_min" "$pulumi_dotnet_destroy_max" "$pulumi_dotnet_destroy_avg"
 
-# Determine winners
-deploy_winner="Bicep"
-deploy_best=$bicep_deploy_avg
-if (( $(echo "$tf_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="Terraform"; deploy_best=$tf_deploy_avg; fi
-if (( $(echo "$ot_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="OpenTofu"; deploy_best=$ot_deploy_avg; fi
-if (( $(echo "$pulumi_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="Pulumi (Python)"; deploy_best=$pulumi_deploy_avg; fi
-if (( $(echo "$pulumi_dotnet_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="Pulumi (.NET)"; deploy_best=$pulumi_dotnet_deploy_avg; fi
+# Determine winners (only consider tools that were actually run - non-zero averages)
+deploy_winner="None"
+deploy_best=999999
 
-destroy_winner="Bicep"
-destroy_best=$bicep_destroy_avg
-if (( $(echo "$tf_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="Terraform"; destroy_best=$tf_destroy_avg; fi
-if (( $(echo "$ot_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="OpenTofu"; destroy_best=$ot_destroy_avg; fi
-if (( $(echo "$pulumi_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="Pulumi (Python)"; destroy_best=$pulumi_destroy_avg; fi
-if (( $(echo "$pulumi_dotnet_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="Pulumi (.NET)"; destroy_best=$pulumi_dotnet_destroy_avg; fi
+# Only consider tools with non-zero deploy averages
+if [ "$RUN_BICEP" = true ] && (( $(echo "$bicep_deploy_avg > 0 && $bicep_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="Bicep"; deploy_best=$bicep_deploy_avg; fi
+if [ "$RUN_TERRAFORM" = true ] && (( $(echo "$tf_deploy_avg > 0 && $tf_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="Terraform"; deploy_best=$tf_deploy_avg; fi
+if [ "$RUN_OPENTOFU" = true ] && (( $(echo "$ot_deploy_avg > 0 && $ot_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="OpenTofu"; deploy_best=$ot_deploy_avg; fi
+if [ "$RUN_PULUMI" = true ] && (( $(echo "$pulumi_deploy_avg > 0 && $pulumi_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="Pulumi (Python)"; deploy_best=$pulumi_deploy_avg; fi
+if [ "$RUN_PULUMI_DOTNET" = true ] && (( $(echo "$pulumi_dotnet_deploy_avg > 0 && $pulumi_dotnet_deploy_avg < $deploy_best" | bc -l) )); then deploy_winner="Pulumi (.NET)"; deploy_best=$pulumi_dotnet_deploy_avg; fi
+
+# Handle case where no tools ran successfully
+if [ "$deploy_best" = "999999" ]; then deploy_best=0; fi
+
+destroy_winner="None"
+destroy_best=999999
+
+# Only consider tools with non-zero destroy averages
+if [ "$RUN_BICEP" = true ] && (( $(echo "$bicep_destroy_avg > 0 && $bicep_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="Bicep"; destroy_best=$bicep_destroy_avg; fi
+if [ "$RUN_TERRAFORM" = true ] && (( $(echo "$tf_destroy_avg > 0 && $tf_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="Terraform"; destroy_best=$tf_destroy_avg; fi
+if [ "$RUN_OPENTOFU" = true ] && (( $(echo "$ot_destroy_avg > 0 && $ot_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="OpenTofu"; destroy_best=$ot_destroy_avg; fi
+if [ "$RUN_PULUMI" = true ] && (( $(echo "$pulumi_destroy_avg > 0 && $pulumi_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="Pulumi (Python)"; destroy_best=$pulumi_destroy_avg; fi
+if [ "$RUN_PULUMI_DOTNET" = true ] && (( $(echo "$pulumi_dotnet_destroy_avg > 0 && $pulumi_dotnet_destroy_avg < $destroy_best" | bc -l) )); then destroy_winner="Pulumi (.NET)"; destroy_best=$pulumi_dotnet_destroy_avg; fi
+
+# Handle case where no tools ran successfully
+if [ "$destroy_best" = "999999" ]; then destroy_best=0; fi
 
 echo -e "\n${YELLOW}🏆 WINNERS:${NC}"
 echo -e "  Fastest Deploy:  ${GREEN}$deploy_winner${NC} (${deploy_best}s avg)"
@@ -897,6 +909,7 @@ case "$deploy_winner" in
     OpenTofu) sed -i "s/DEPLOY_WINNER_COLOR/var(--opentofu-color)/g" "$HTML_FILE" ;;
     "Pulumi (Python)") sed -i "s/DEPLOY_WINNER_COLOR/var(--pulumi-color)/g" "$HTML_FILE" ;;
     "Pulumi (.NET)") sed -i "s/DEPLOY_WINNER_COLOR/var(--pulumi-dotnet-color)/g" "$HTML_FILE" ;;
+    *) sed -i "s/DEPLOY_WINNER_COLOR/#888888/g" "$HTML_FILE" ;;
 esac
 
 case "$destroy_winner" in
@@ -905,6 +918,7 @@ case "$destroy_winner" in
     OpenTofu) sed -i "s/DESTROY_WINNER_COLOR/var(--opentofu-color)/g" "$HTML_FILE" ;;
     "Pulumi (Python)") sed -i "s/DESTROY_WINNER_COLOR/var(--pulumi-color)/g" "$HTML_FILE" ;;
     "Pulumi (.NET)") sed -i "s/DESTROY_WINNER_COLOR/var(--pulumi-dotnet-color)/g" "$HTML_FILE" ;;
+    *) sed -i "s/DESTROY_WINNER_COLOR/#888888/g" "$HTML_FILE" ;;
 esac
 
 # Winner badges
@@ -1059,6 +1073,11 @@ sed -i "s|PULUMI_DEPLOY_TIMES|$pulumi_times|g" "$HTML_FILE"
 calc_pct_diff() {
     local winner_val=$1
     local other_val=$2
+    # Guard against divide by zero
+    if [ "$(echo "$winner_val == 0" | bc -l)" = "1" ]; then
+        echo "N/A"
+        return
+    fi
     echo "scale=1; (($other_val - $winner_val) / $winner_val) * 100" | bc
 }
 
@@ -1073,10 +1092,16 @@ for tool in Bicep Terraform OpenTofu "Pulumi (Python)" "Pulumi (.NET)"; do
     esac
     
     if [ "$deploy_winner" = "$tool" ]; then
-        sed -i "s/$placeholder/-/g" "$HTML_FILE"
+        sed -i "s|$placeholder|-|g" "$HTML_FILE"
+    elif [ "$(echo "$tool_avg == 0" | bc -l)" = "1" ]; then
+        sed -i "s|$placeholder|N/A|g" "$HTML_FILE"
     else
         pct=$(calc_pct_diff "$deploy_best" "$tool_avg")
-        sed -i "s/$placeholder/${pct}% faster/g" "$HTML_FILE"
+        if [ "$pct" = "N/A" ]; then
+            sed -i "s|$placeholder|N/A|g" "$HTML_FILE"
+        else
+            sed -i "s|$placeholder|${pct}% slower|g" "$HTML_FILE"
+        fi
     fi
 done
 
@@ -1091,10 +1116,16 @@ for tool in Bicep Terraform OpenTofu "Pulumi (Python)" "Pulumi (.NET)"; do
     esac
     
     if [ "$destroy_winner" = "$tool" ]; then
-        sed -i "s/$placeholder/-/g" "$HTML_FILE"
+        sed -i "s|$placeholder|-|g" "$HTML_FILE"
+    elif [ "$(echo "$tool_avg == 0" | bc -l)" = "1" ]; then
+        sed -i "s|$placeholder|N/A|g" "$HTML_FILE"
     else
         pct=$(calc_pct_diff "$destroy_best" "$tool_avg")
-        sed -i "s/$placeholder/${pct}% faster/g" "$HTML_FILE"
+        if [ "$pct" = "N/A" ]; then
+            sed -i "s|$placeholder|N/A|g" "$HTML_FILE"
+        else
+            sed -i "s|$placeholder|${pct}% slower|g" "$HTML_FILE"
+        fi
     fi
 done
 
