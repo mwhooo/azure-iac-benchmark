@@ -5,7 +5,7 @@ A fair, reproducible benchmark comparing deployment speeds of **Bicep**, **Terra
 ![Azure](https://img.shields.io/badge/Azure-0078D4?style=flat&logo=microsoftazure&logoColor=white)
 ![Bicep](https://img.shields.io/badge/Bicep-0078D4?style=flat&logo=microsoftazure&logoColor=white)
 ![Terraform](https://img.shields.io/badge/Terraform-7B42BC?style=flat&logo=terraform&logoColor=white)
-![OpenTofu](https://img.shields.io/badge/OpenTofu-FFDA18?style=flat&logo=opentofu&logoColor=black)
+![OpenTofu](https://img.shields.io/badge/OpenTofu-FFDA18?style=flat&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzAwMCIgZD0iTTEyIDBMMS42MDggNnYxMkwxMiAyNGwxMC4zOTItNlY2TDEyIDB6bTAgMi40bDguNCA0Ljh2OS42bC04LjQgNC44LTguNC00LjhWNy4ybDguNC00Ljh6Ii8+PHBhdGggZmlsbD0iIzAwMCIgZD0iTTEyIDYuNTRMNi41NCAxMnY0LjkyTDEyIDE3LjQ2bDUuNDYtLjU0VjEyTDEyIDYuNTR6Ii8+PC9zdmc+&logoColor=black)
 ![Pulumi](https://img.shields.io/badge/Pulumi-8A3391?style=flat&logo=pulumi&logoColor=white)
 
 ## 📊 Benchmark Results
