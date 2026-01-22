@@ -41,7 +41,11 @@ Results from 3 iterations on identical Azure resources (January 2026):
 - **Most Consistent**: Pulumi (smallest variance across iterations)
 - **Note**: OpenTofu and Terraform have nearly identical performance (expected as OpenTofu is a Terraform fork)
 
-### 🔍 Why Terraform/OpenTofu Are Slower
+### � Methodology
+
+> **How we measure**: Each tool deploys identical resources to the same Azure region (West Europe). Timing measures only the deployment/destroy phase—tool initialization and setup are excluded. All tools use their default parallelism settings. Results are averaged across multiple iterations to reduce variance from network latency and Azure API response times. The benchmark script and all infrastructure code are open source for full transparency.
+
+### �🔍 Why Terraform/OpenTofu Are Slower
 
 Terraform and OpenTofu consistently show longer deployment and especially destroy times compared to Bicep and Pulumi. This is due to fundamental architectural differences, not implementation quality:
 
