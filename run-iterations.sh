@@ -245,6 +245,8 @@ calc_stats() {
     done
     
     local avg=$(echo "scale=2; $sum / ${#arr[@]}" | bc)
+    min=$(printf "%.2f" "$min")
+    max=$(printf "%.2f" "$max")
     echo "$min $max $avg"
 }
 
@@ -472,7 +474,7 @@ cat > "$HTML_FILE" << 'HTMLEOF'
         
         .grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
@@ -483,6 +485,8 @@ cat > "$HTML_FILE" << 'HTMLEOF'
             padding: 1.5rem;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
             transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
         }
         
         .card:hover {
@@ -844,33 +848,44 @@ cat > "$HTML_FILE" << 'HTMLEOF'
                         label: 'Bicep Deploy',
                         data: [BICEP_DEPLOY_TIMES],
                         borderColor: 'rgba(0,120,212,1)',
-                        backgroundColor: 'rgba(0,120,212,0.1)',
+                        backgroundColor: 'rgba(0,120,212,1)',
                         tension: 0.3,
-                        fill: false
+                        fill: false,
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        borderWidth: 2
                     },
                     {
                         label: 'Terraform Deploy',
                         data: [TF_DEPLOY_TIMES],
                         borderColor: 'rgba(123,66,188,1)',
-                        backgroundColor: 'rgba(123,66,188,0.1)',
+                        backgroundColor: 'rgba(123,66,188,1)',
                         tension: 0.3,
-                        fill: false
+                        fill: false,
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        borderWidth: 2
                     },
                     {
                         label: 'OpenTofu Deploy',
                         data: [OT_DEPLOY_TIMES],
                         borderColor: 'rgba(255,218,24,1)',
-                        backgroundColor: 'rgba(255,218,24,0.1)',
+                        backgroundColor: 'rgba(255,218,24,1)',
                         tension: 0.3,
-                        fill: false
+                        fill: false,
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        borderWidth: 2
                     },
                     {
                         label: 'Pulumi Deploy',
                         data: [PULUMI_DEPLOY_TIMES],
                         borderColor: 'rgba(247,191,42,1)',
-                        backgroundColor: 'rgba(247,191,42,0.1)',
+                        backgroundColor: 'rgba(247,191,42,1)',
                         tension: 0.3,
                         fill: false,
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
                         borderWidth: 2
                     }
                 ]
